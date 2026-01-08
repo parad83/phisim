@@ -1,5 +1,5 @@
 # PHISIM
 
-a physics simulator in go + webgl
+mathematical grapher in webgl
 
 
