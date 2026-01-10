@@ -4,46 +4,70 @@ var g_programObject = null;
 var g_width = 0;
 var g_height = 0;
 
-var g_vbo = null;
+var g_vbo_pos = null;
+var g_vbo_col = null;
 var g_axes_vbo = null;
 
 var model = new Matrix4x4();
 var view = new Matrix4x4();
 var projection = new Matrix4x4();
+var g_mvp = new Matrix4x4();
 
 var I = new Matrix4x4();
 I.loadIdentity();
 
-var g_positionLoc = -1;
-var g_axesLoc = -1;
+var a_positionLoc = -1;
 var u_mvpLoc = -1;
+var a_colorLoc = -1;
 
 var controller = null;
 
-var positions = new Float32Array([0.5, -0.5, 0.0, -1, -0.5, 0, 1, 0, -0.5]);
+// TODO move all to main
+import { rgba, EQFunction, zoomIn, zoomOut } from "./backend.js";
+
+const red = rgba(255, 0, 0, 255);
+
+import { state } from "./state.js";
+
+var eq = new EQFunction("y=2x", red);
+// var positions = new Float32Array([0.5, -0.5, 0.0, -1, -0.5, 0, 1, 0, -0.5]);
+// var colors = new Float32Array([1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1]);
+var positions = eq.getPositions();
+var colors = eq.getColors();
 
 var pos_x = 0;
 var pos_y = 0;
-var s = 0.01;
+var s = 8;
 
 // axis offset from (0,0)
 var ax_o_x = 0;
 var ax_o_y = 0;
 
+const FLOAT_SIZE = 4;
+const STRIDE = 7 * FLOAT_SIZE;
+
 var vertexSource = [
-  "attribute vec3 g_position;",
+  "attribute vec3 a_position;",
+  "attribute vec4 a_color;",
+  "",
+  "varying vec4 v_color;",
+  "",
   "uniform mat4 u_mvp;",
+  "",
   "void main() {",
-  "  gl_Position = u_mvp * vec4(g_position, 1.0);",
+  "  gl_Position = u_mvp * vec4(a_position, 1.0);",
+  "  v_color = a_color;",
   "}",
 ].join("\n");
 
 var fragmentSource = [
   "precision mediump float;",
   "",
+  "varying vec4 v_color;",
+  "",
   "void main()",
   "{",
-  "gl_FragColor = vec4(1.0, 0.5, 0.2, 1.0);",
+  "gl_FragColor = v_color;",
   "}",
 ].join("\n");
 
@@ -62,8 +86,26 @@ function main() {
 
   controller = new CameraController(c);
   controller.onchange = function (xRot, yRot) {
-    pos_x -= controller.deltaX * s;
-    pos_y += controller.deltaY * s;
+    // pos_x -= controller.deltaX * s;
+    // pos_y += controller.deltaY * s;
+
+    const worldPerPixelX = (2 * state.zoom) / g_width;
+    const worldPerPixelY = (2 * state.zoom) / g_height;
+
+    ax_o_x += -controller.deltaX * worldPerPixelX * 1 * s;
+    ax_o_y += controller.deltaY * worldPerPixelY * 1 * s;
+
+    // ax_o_x = Math.max(-1, Math.min(1, pos_x));
+    // ax_o_y = Math.max(-1, Math.min(1, pos_y));
+    // ax_o_x = pos_x;
+    // ax_o_y = pos_y;
+
+    eq.solve(ax_o_x, ax_o_y);
+    positions = eq.getPositions();
+    colors = eq.getColors();
+    console.log(positions[0]);
+
+    bindBuffers();
 
     draw();
   };
@@ -77,8 +119,8 @@ function init() {
   gl.enable(gl.DEPTH_TEST);
   // Can use this to make the background opaque
   // gl.clearColor(0.3, 0.2, 0.2, 1.);
-  gl.clearColor(0.0, 0.0, 0.0, 1.0);
-  initTriangle();
+  gl.clearColor(1.0, 1.0, 1.0, 1.0);
+  initBuffers();
   initShaders();
   //   g_bumpTexture = loadTexture("bump.jpg");
   //   g_envTexture = loadCubeMap("skybox", "jpg");
@@ -86,24 +128,41 @@ function init() {
   g_axes_vbo = gl.createBuffer();
 }
 
-function initTriangle() {
-  g_vbo = gl.createBuffer();
-  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo);
-  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+function bindBuffers() {
+  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_pos);
+  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
+  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_col);
+  gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
+}
+
+function initBuffers() {
+  g_vbo_pos = gl.createBuffer();
+  g_vbo_col = gl.createBuffer();
+  bindBuffers();
 }
 
 function drawAxis() {
-  const axes = buildAxis();
+  const verts = buildAxis();
 
   gl.bindBuffer(gl.ARRAY_BUFFER, g_axes_vbo);
-  gl.bufferData(gl.ARRAY_BUFFER, axes, gl.DYNAMIC_DRAW);
+  gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
 
   gl.useProgram(g_programObject);
 
-  gl.uniformMatrix4fv(u_mvpLoc, false, new Float32Array(I.elements));
+  gl.uniformMatrix4fv(u_mvpLoc, false, g_mvp.elements);
 
-  gl.enableVertexAttribArray(g_positionLoc);
-  gl.vertexAttribPointer(g_positionLoc, 3, gl.FLOAT, false, 0, 0);
+  gl.enableVertexAttribArray(a_positionLoc);
+  gl.vertexAttribPointer(a_positionLoc, 3, gl.FLOAT, false, STRIDE, 0); // since 3 positions + 4 colors = 7 float sizes
+
+  gl.enableVertexAttribArray(a_colorLoc);
+  gl.vertexAttribPointer(
+    a_colorLoc,
+    4,
+    gl.FLOAT,
+    false,
+    STRIDE,
+    3 * FLOAT_SIZE
+  ); // since 3 positions followed by 4 colors
 
   // width can only be 1 on firefox
   gl.disable(gl.DEPTH_TEST);
@@ -116,31 +175,45 @@ function draw() {
   checkGLError();
 
   projection.loadIdentity();
-  //   projection.perspective(45, g_width / g_height, 10, 500);
+  projection.ortho(
+    -state.zoom, // left
+    state.zoom, // right
+    -state.zoom, // bottom
+    state.zoom, // top
+    -1, // near
+    1 // far
+  );
+  //   projection.perspective(260, 1, 10, 10000);
 
   view.loadIdentity();
-  //   view.translate(0, -10, -100.0);
+  //   view.translate(0, -10, -10.0);
 
   model.loadIdentity();
   //   model.rotate(controller.xRot, 1, 0, 0);
   //   model.rotate(controller.yRot, 0, 1, 0);
 
-  model.translate(pos_x, pos_y, 0);
+  //   model.translate(pos_x, pos_y, 0);
 
   var mvp = new Matrix4x4();
   mvp.multiply(model);
   mvp.multiply(view);
   mvp.multiply(projection);
 
+  g_mvp = mvp;
+
   gl.useProgram(g_programObject);
 
   gl.uniformMatrix4fv(u_mvpLoc, false, new Float32Array(mvp.elements));
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo);
-  gl.enableVertexAttribArray(g_positionLoc);
-  gl.vertexAttribPointer(g_positionLoc, 3, gl.FLOAT, false, 0, 0);
+  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_pos);
+  gl.enableVertexAttribArray(a_positionLoc);
+  gl.vertexAttribPointer(a_positionLoc, 3, gl.FLOAT, false, 0, 0);
 
-  gl.drawArrays(gl.TRIANGLES, 0, 3);
+  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_col);
+  gl.enableVertexAttribArray(a_colorLoc);
+  gl.vertexAttribPointer(a_colorLoc, 4, gl.UNSIGNED_BYTE, true, 0, 0);
+
+  gl.drawArrays(gl.LINE_STRIP, 0, positions.length / 3);
 
   drawAxis();
   checkGLError();
@@ -170,7 +243,8 @@ function initShaders() {
 
   // for setting the uniforms
 
-  g_positionLoc = gl.getAttribLocation(g_programObject, "g_position");
+  a_positionLoc = gl.getAttribLocation(g_programObject, "a_position");
+  a_colorLoc = gl.getAttribLocation(g_programObject, "a_color");
   u_mvpLoc = gl.getUniformLocation(g_programObject, "u_mvp");
 }
 
@@ -186,7 +260,7 @@ function loadShader(type, shaderSrc) {
     !gl.isContextLost()
   ) {
     var infoLog = gl.getShaderInfoLog(shader);
-    output("Error compiling shader:\n" + infoLog);
+    console.log("Error compiling shader:\n" + infoLog);
     gl.deleteShader(shader);
     return null;
   }
@@ -203,21 +277,52 @@ function checkGLError() {
 }
 
 function buildAxis() {
-  ax_o_x = Math.max(-1, Math.min(1, pos_x));
-  ax_o_y = Math.max(-1, Math.min(1, pos_y));
-
+  // with black colors
   return new Float32Array([
     ax_o_x,
-    -1.0,
+    -state.zoom,
     0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    //
     ax_o_x,
-    1.0,
+    state.zoom,
     0.0,
-    -1.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
+    //
+    -state.zoom,
     ax_o_y,
     0.0,
+    0.0,
+    0.0,
+    0.0,
     1.0,
+    //
+    state.zoom,
     ax_o_y,
     0.0,
+    0.0,
+    0.0,
+    0.0,
+    1.0,
   ]);
 }
+
+window.main = main;
+
+window.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("zoom-in").addEventListener("click", () => {
+    zoomIn();
+    draw();
+  });
+
+  document.getElementById("zoom-out").addEventListener("click", () => {
+    zoomOut();
+    draw();
+  });
+});
