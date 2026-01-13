@@ -1,34 +1,48 @@
 import { state } from "./state.js";
+import { expr } from "./libs/pratt.js";
 
 function enterEq(ele) {
   if (event.key === "Enter") {
-    alert(ele.value);
+    // alert(ele.value);
+    // const tokens = ele.value.split(" ");
+    // console.log(tokens);
+
+    const s = expr(ele.value);
+    // console.log("brackets: " + brackets);
+    console.log("result: " + s);
   }
 }
 
-export function zoomIn() {
+function zoomIn() {
   state.zoom *= 1.1;
 }
 
-export function zoomOut() {
+function zoomOut() {
   state.zoom *= 0.9;
+}
+
+function resetZoom() {
+  state.zoom = 1;
 }
 
 function linspace(min, max, n) {
   return Array.from({ length: n }, (_, i) => min + (i * (max - min)) / (n - 1));
 }
 
-export const rgba = (r, g, b, a = 255) => new Uint8Array([r, g, b, a]);
+const rgba = (r, g, b, a = 255) => new Uint8Array([r, g, b, a]);
 
-export class EQFunction {
+class EQFunction {
   constructor(eq, color) {
     this.eq = eq;
     this.color = color;
-    this.x = linspace(-100, 100, 40000);
+    this.x = linspace(-100 * state.zoom, 100 * state.zoom, 40000);
     this.y = this.x.map((x) => Math.sin(x));
   }
 
   solve(ax_o_x, ax_o_y) {
+    this.x = linspace(-100 * state.zoom, 100 * state.zoom, 40000);
+    {
+    }
     for (let i = 0; i < this.x.length; i++) {
       this.y[i] = Math.sin(this.x[i] - ax_o_x) + ax_o_y;
     }
@@ -70,3 +84,5 @@ class CanvasData {
     return CanvasData.instance;
   }
 }
+
+export { enterEq, zoomIn, zoomOut, resetZoom, rgba, EQFunction, CanvasData };

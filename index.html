@@ -5,22 +5,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Document</title>
-    <script type="application/javascript" src="webgl-utils.js"></script>
-    <script type="application/javascript" src="matrix4x4.js"></script>
-    <script type="application/javascript" src="cameracontroller.js"></script>
-    <script type="application/javascript" src="backend.js"></script>
-    <script type="module" src="utils.js"></script>
-
-    <script type="module" src="canvas.js"></script>
+    <script type="application/javascript" src="scripts/libs/webgl-utils.js"></script>
+    <script type="application/javascript" src="scripts/libs/matrix4x4.js"></script>
+    <script type="application/javascript" src="scripts/libs/cameracontroller.js"></script>
+    <!-- <script type="module" src="scripts/utils.js"></script> -->
+    <script type="module" src="scripts/canvas.js"></script>
 </head>
 
 <body onload="main()">
 
     <canvas id="c" style="width: 800px; height: 600px; border: solid 1px black;" class="centeredcanvas" width="1600"
         height="1200"></canvas>
-    <input id="eq-input" type="text" onkeydown="enterEq(this)">
-    <button id="zoom-in" onclick="zoomIn()"></button>
-    <button id="zoom-out" onclick="zoomOut()"></button>
+    <input id="eq-input" type="text">
+    <button id="zoom-in">-</button>
+    <button id="center">o</button>
+    <button id="zoom-out">+</button>
 </body>
 
 </html>

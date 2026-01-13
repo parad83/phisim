@@ -20,10 +20,20 @@ var a_positionLoc = -1;
 var u_mvpLoc = -1;
 var a_colorLoc = -1;
 
+var x_ticks = 10;
+var y_ticks = 10;
+
 var controller = null;
 
 // TODO move all to main
-import { rgba, EQFunction, zoomIn, zoomOut } from "./backend.js";
+import {
+  rgba,
+  EQFunction,
+  zoomIn,
+  zoomOut,
+  resetZoom,
+  enterEq,
+} from "./utils.js";
 
 const red = rgba(255, 0, 0, 255);
 
@@ -276,6 +286,17 @@ function checkGLError() {
   }
 }
 
+// function buildSemiAxis(from, f) {
+//   const interval = (2 * ax_o_x) / x_ticks;
+//   //   const interval_y = (2 * ax_o_y) / y_ticks;
+
+//   const verts = new Float32Array(interval * 7*2);
+
+//   for (let i = 0; i < interval; i++) {
+//     verts[i * 14] = 1
+//   }
+// }
+
 function buildAxis() {
   // with black colors
   return new Float32Array([
@@ -324,5 +345,15 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("zoom-out").addEventListener("click", () => {
     zoomOut();
     draw();
+  });
+
+  document.getElementById("center").addEventListener("click", () => {
+    resetZoom();
+    draw();
+  });
+  document.getElementById("eq-input").addEventListener("keydown", () => {
+    // resetZoom();
+    // draw();
+    enterEq(document.getElementById("eq-input"));
   });
 });
