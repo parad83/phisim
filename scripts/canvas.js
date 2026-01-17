@@ -33,20 +33,23 @@ import {
   zoomOut,
   resetZoom,
   enterEq,
+  concatFloat32,
+  concatUInt8,
 } from "./utils.js";
 
-const red = rgba(255, 0, 0, 255);
-
 import { state } from "./state.js";
+import { expr } from "./libs/pratt.js";
 
-var eq = new EQFunction("y=2x", red);
+// const s_struct = expr("2*x");
+
+// var eq = new EQFunction("y=2x", red, s_struct);
 // var positions = new Float32Array([0.5, -0.5, 0.0, -1, -0.5, 0, 1, 0, -0.5]);
 // var colors = new Float32Array([1, 0, 0, 1, 0, 1, 0, 1, 0, 0, 1, 1]);
-var positions = eq.getPositions();
-var colors = eq.getColors();
+// var positions = eq.getPositions();
 
-var pos_x = 0;
-var pos_y = 0;
+var positions = [];
+var colors = [];
+
 var s = 8;
 
 // axis offset from (0,0)
@@ -110,23 +113,31 @@ function main() {
     // ax_o_x = pos_x;
     // ax_o_y = pos_y;
 
-    eq.solve(ax_o_x, ax_o_y);
-    positions = eq.getPositions();
-    colors = eq.getColors();
-    console.log(positions[0]);
-
+    updateAll();
     bindBuffers();
 
     draw();
+    // drawAxis();
   };
 
   init();
+  //   updateEquation();
+  bindBuffers();
   draw();
+  //   drawAxis();
+}
+
+function updateEquation(index) {
+  state.equations[index].solve(ax_o_x, ax_o_y);
+  positions = concatFloat32(state.equations.map((eq) => eq.getPositions()));
+  colors = concatUInt8(state.equations.map((eq) => eq.getColors()));
+  //   console.log(positions[0]);
+  //   bindBuffers();
 }
 
 function init() {
   gl.viewport(0, 0, g_width, g_height);
-  gl.enable(gl.DEPTH_TEST);
+  //   gl.enable(gl.DEPTH_TEST);
   // Can use this to make the background opaque
   // gl.clearColor(0.3, 0.2, 0.2, 1.);
   gl.clearColor(1.0, 1.0, 1.0, 1.0);
@@ -139,6 +150,7 @@ function init() {
 }
 
 function bindBuffers() {
+  if (!g_vbo_pos || !g_vbo_col) return;
   gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_pos);
   gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
   gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_col);
@@ -148,7 +160,7 @@ function bindBuffers() {
 function initBuffers() {
   g_vbo_pos = gl.createBuffer();
   g_vbo_col = gl.createBuffer();
-  bindBuffers();
+  //   bindBuffers();
 }
 
 function drawAxis() {
@@ -159,7 +171,7 @@ function drawAxis() {
 
   gl.useProgram(g_programObject);
 
-  gl.uniformMatrix4fv(u_mvpLoc, false, g_mvp.elements);
+  gl.uniformMatrix4fv(u_mvpLoc, false, new Float32Array(g_mvp.elements));
 
   gl.enableVertexAttribArray(a_positionLoc);
   gl.vertexAttribPointer(a_positionLoc, 3, gl.FLOAT, false, STRIDE, 0); // since 3 positions + 4 colors = 7 float sizes
@@ -171,13 +183,13 @@ function drawAxis() {
     gl.FLOAT,
     false,
     STRIDE,
-    3 * FLOAT_SIZE
+    3 * FLOAT_SIZE,
   ); // since 3 positions followed by 4 colors
 
   // width can only be 1 on firefox
-  gl.disable(gl.DEPTH_TEST);
+  //   gl.disable(gl.DEPTH_TEST);
   gl.drawArrays(gl.LINES, 0, 4);
-  gl.enable(gl.DEPTH_TEST);
+  //   gl.enable(gl.DEPTH_TEST);
 }
 
 function draw() {
@@ -191,7 +203,7 @@ function draw() {
     -state.zoom, // bottom
     state.zoom, // top
     -1, // near
-    1 // far
+    1, // far
   );
   //   projection.perspective(260, 1, 10, 10000);
 
@@ -223,8 +235,26 @@ function draw() {
   gl.enableVertexAttribArray(a_colorLoc);
   gl.vertexAttribPointer(a_colorLoc, 4, gl.UNSIGNED_BYTE, true, 0, 0);
 
-  gl.drawArrays(gl.LINE_STRIP, 0, positions.length / 3);
-
+  // cheaky assuming all positions are same length for same equation :)))
+  // maybe later optimise for constant functions and then need to change but wtv
+  // always 400 positions for each equation
+  // since 3 coordinates its 3 * 400
+  console.log(
+    "eqcount",
+    state.equations.length,
+    "verts",
+    positions.length / 3,
+    "colors",
+    colors.length,
+  );
+  console.log(state.equations.map((e) => e.s_struct));
+  const vertsPerEq = 400;
+  const totalVerts = positions.length / 3;
+  //   gl.disable(gl.DEPTH_TEST);
+  for (let first = 0; first < totalVerts; first += vertsPerEq) {
+    gl.drawArrays(gl.LINE_STRIP, first, vertsPerEq);
+  }
+  //   gl.enable(gl.DEPTH_TEST);
   drawAxis();
   checkGLError();
 }
@@ -244,7 +274,7 @@ function initShaders() {
   var linked = gl.getProgramParameter(programObject, gl.LINK_STATUS);
   if (!linked && !gl.isContextLost()) {
     console.log(
-      "Error linking program: \n" + gl.getProgramInfoLog(programObject)
+      "Error linking program: \n" + gl.getProgramInfoLog(programObject),
     );
     gl.deleteProgram(programObject);
     return;
@@ -281,8 +311,8 @@ function checkGLError() {
   var error = gl.getError();
   if (error != gl.NO_ERROR && error != gl.CONTEXT_LOST_WEBGL) {
     var str = "GL Error: " + error;
-    output(str);
-    throw str;
+    console.log(str);
+    // throw str;
   }
 }
 
@@ -334,26 +364,51 @@ function buildAxis() {
   ]);
 }
 
+function updateAll() {
+  console.log(state.equations.map((eq) => eq.getPositions().slice(0, 10)));
+  state.equations.forEach((eq) => eq.solve(ax_o_x, ax_o_y));
+  positions = concatFloat32(state.equations.map((eq) => eq.getPositions()));
+  colors = concatUInt8(state.equations.map((eq) => eq.getColors()));
+}
+
 window.main = main;
 
 window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("zoom-in").addEventListener("click", () => {
-    zoomIn();
+    zoomIn(ax_o_x, ax_o_y);
+    updateAll();
+    bindBuffers();
     draw();
+    // drawAxis();
   });
 
   document.getElementById("zoom-out").addEventListener("click", () => {
-    zoomOut();
+    zoomOut(ax_o_x, ax_o_y);
+    updateAll();
+    bindBuffers();
     draw();
+    // drawAxis();
   });
 
   document.getElementById("center").addEventListener("click", () => {
     resetZoom();
+
+    bindBuffers();
     draw();
+    // drawAxis();
   });
   document.getElementById("eq-input").addEventListener("keydown", () => {
     // resetZoom();
-    // draw();
-    enterEq(document.getElementById("eq-input"));
+    // drawAxis();
+    if (event.key === "Enter") {
+      // cheakkyyyy
+      var index = enterEq(document.getElementById("eq-input").value);
+      console.log(state.equations.length);
+      //   updateEquation(index);
+      updateAll();
+      bindBuffers();
+      draw();
+    }
+    console.log(positions.length, colors.length);
   });
 });

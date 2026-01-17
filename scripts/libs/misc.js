@@ -6,7 +6,22 @@ const OPERATORS = {
   "*": (a, b) => a * b,
   //   "^": (a, b) => Math.pow(a, b),
   "/": (a, b) => a / b,
-  "!": (a) => Math.factorial(a),
+  "!unary": (a) => factorial(a),
+  "-unary": (a) => -a,
+};
+
+const factorial = (n) => {
+  if (n <= 1) {
+    return 1;
+  }
+  return n * factorial(n - 1);
+};
+
+const operators_table = (op, arity) => {
+  if (arity === 1) {
+    return (a) => OPERATORS[`${op}unary`](a);
+  }
+  return (a, b) => OPERATORS[op](a, b);
 };
 
 // const OPERATORS_LIST = Object.keys(OPERATORS);
@@ -47,14 +62,6 @@ function getFonts(tokens) {
   return t.join(" ");
 }
 
-const isLeftAssoc = function (op) {
-  return isRightAssoc(op);
-};
-
-const isRightAssoc = function (op) {
-  return op == "not";
-};
-
 const isVariable = function (t) {
   return t.match(/^[A-Za-z]$/);
 };
@@ -63,26 +70,9 @@ const isNumber = function (t) {
   return t.match(/\d+/);
 };
 
-const isFun = function (t) {
-  return false;
-};
-
 const isOperator = function (t) {
   return OPERATORS_LIST.includes(t);
 };
-
-const isUnary = function (op) {
-  return op == "-";
-};
-
-function arraysEqual(a, b) {
-  if (a == null || b == null) return false;
-
-  for (var i = 0; i < a.length; ++i) {
-    if (a[i] !== b[i]) return false;
-  }
-  return true;
-}
 
 function assert(result, expected) {
   return arraysEqual(result, expected);
@@ -115,15 +105,21 @@ function printAllTests(test) {
   }
 }
 
+function arraysEqual(a, b) {
+  if (a == null || b == null) return false;
+
+  for (var i = 0; i < a.length; ++i) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+}
+
 export {
   assert,
   printAllTests,
-  isLeftAssoc,
-  isRightAssoc,
+  operators_table,
   isVariable,
-  isFun,
   isOperator,
-  isUnary,
   getFonts,
   isNumber,
   PRECEDENCE,

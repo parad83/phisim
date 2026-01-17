@@ -1,4 +1,4 @@
-import { shunting_yard } from "./shunting_yard.js";
+import { shunting_yard } from "./pratt.js";
 import { Queue, Stack } from "./dt.js";
 import { isVariable, isOperator, isUnary, OPERATORS } from "./misc.js";
 

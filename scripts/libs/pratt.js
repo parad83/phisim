@@ -1,14 +1,7 @@
 // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
 import { Queue, Stack } from "./dt.js";
-import {
-  isLeftAssoc,
-  isVariable,
-  isFun,
-  isOperator,
-  PRECEDENCE,
-  isNumber,
-} from "./misc.js";
+import { isVariable, isOperator, isNumber, operators_table } from "./misc.js";
 
 class Token {
   constructor(c) {
@@ -34,16 +27,41 @@ class Eof extends Token {
   }
 }
 
+const VARIABLES = {
+  x: 10,
+};
+
 class S {
   constructor(c) {
     this.c = c;
   }
 
   print() {}
+
+  toArray() {
+    return [this.c];
+  }
+
+  eval(vars) {}
 }
 class SAtom extends S {
   print() {
     process.stdout.write(this.c);
+  }
+
+  toArray() {
+    return [this.c];
+  }
+
+  eval(vars) {
+    if (isNumber(this.c)) {
+      return parseFloat(this.c);
+    }
+    return vars[this.c];
+  }
+
+  toString() {
+    return this.c;
   }
 }
 class SCons extends S {
@@ -59,6 +77,23 @@ class SCons extends S {
       e.print();
     });
     process.stdout.write(")");
+  }
+
+  toArray() {
+    return [this.c, ...this.next.flatMap((e) => e.toArray())];
+  }
+
+  toString() {
+    return (
+      "(" + this.c + " " + this.next.map((e) => e.toString()).join(" ") + ")"
+    );
+  }
+
+  eval(vars) {
+    return operators_table(
+      this.c,
+      this.next.length,
+    )(...this.next.map((e) => e.eval(vars)));
   }
 }
 
@@ -111,6 +146,7 @@ function expr_bp(lexer, min_bp) {
   } else {
     process.stdout.write("bad token: ");
     lhs.print();
+    c;
     process.stdout.write("\n");
     return;
   }
@@ -193,8 +229,11 @@ function postfix_binding_power(op) {
 
 // process.stdout.write(")");
 
-// const s = expr("--1 * 2");
+// const s = expr("x*x");
+// expr("--1 * 2").print();
 // console.log(s);
-// s.print();
+// console.log(s.eval(VARIABLES));
+// console.log(s);
+// traverse(s);
 
 export { expr };

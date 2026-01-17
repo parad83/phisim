@@ -1,23 +1,68 @@
 import { state } from "./state.js";
 import { expr } from "./libs/pratt.js";
 
+export function concatFloat32(arr) {
+  const total = arr.reduce((s, a) => s + a.length, 0);
+  //   console.log(total);
+  const out = new Float32Array(total);
+
+  let offset = 0;
+  for (const a of arr) {
+    out.set(a, offset);
+    offset += a.length;
+  }
+  return out;
+}
+
+export function concatUInt8(arr) {
+  const total = arr.reduce((s, a) => s + a.length, 0);
+  const out = new Uint8Array(total);
+
+  let offset = 0;
+  for (const a of arr) {
+    out.set(a, offset);
+    offset += a.length;
+  }
+  return out;
+}
+
 function enterEq(ele) {
   if (event.key === "Enter") {
+    const input = ele;
+    console.log("Entered equation: " + input);
     // alert(ele.value);
     // const tokens = ele.value.split(" ");
     // console.log(tokens);
 
-    const s = expr(ele.value);
+    const s_struct = expr(input);
+    // console.log(s_struct);
+
+    state.equations.push(new EQFunction(input, rgba(255, 0, 0, 255), s_struct));
+
+    const newequation = document.createElement("div");
+    const index = state.equations.length - 1;
+    console.log(index);
+    newequation.textContent = s_struct.toString();
+    document.getElementById("eq-list").appendChild(newequation);
+
+    return index;
+    // console.log(state.equations);
+
+    // const VARS = {
+    //   x: 10,
+    // };
+    // const s = expr(ele.value);
+    // s.eval(VARS);
     // console.log("brackets: " + brackets);
-    console.log("result: " + s);
+    // console.log("result: " + s.eval(VARS));
   }
 }
 
-function zoomIn() {
+function zoomIn(ax_o_x, ax_o_y) {
   state.zoom *= 1.1;
 }
 
-function zoomOut() {
+function zoomOut(ax_o_x, ax_o_y) {
   state.zoom *= 0.9;
 }
 
@@ -32,19 +77,24 @@ function linspace(min, max, n) {
 const rgba = (r, g, b, a = 255) => new Uint8Array([r, g, b, a]);
 
 class EQFunction {
-  constructor(eq, color) {
+  constructor(eq, color, s_struct) {
     this.eq = eq;
     this.color = color;
-    this.x = linspace(-100 * state.zoom, 100 * state.zoom, 40000);
-    this.y = this.x.map((x) => Math.sin(x));
+    this.s_struct = s_struct;
+    this.x = linspace(-1 * state.zoom, 1 * state.zoom, 400);
+    this.y = this.x.map((x) => s_struct.eval({ x }));
   }
 
   solve(ax_o_x, ax_o_y) {
-    this.x = linspace(-100 * state.zoom, 100 * state.zoom, 40000);
+    this.x = linspace(
+      (-1 - Math.abs(ax_o_x)) * state.zoom,
+      (1 + Math.abs(ax_o_x)) * state.zoom,
+      400,
+    );
     {
     }
     for (let i = 0; i < this.x.length; i++) {
-      this.y[i] = Math.sin(this.x[i] - ax_o_x) + ax_o_y;
+      this.y[i] = this.s_struct.eval({ x: this.x[i] - ax_o_x }) + ax_o_y;
     }
   }
 
