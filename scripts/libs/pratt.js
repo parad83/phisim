@@ -1,7 +1,21 @@
 // https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html
 
-import { Queue, Stack } from "./dt.js";
-import { isVariable, isOperator, isNumber, operators_table } from "./misc.js";
+import { Queue, Stack } from "./ds.js";
+import {
+  isVariable,
+  isOperator,
+  isNumber,
+  operators_table,
+  isFunction,
+} from "./misc.js";
+
+function log(e) {
+  if (typeof window === "undefined") {
+    process.stdout.write(e);
+  } else {
+    console.log(e);
+  }
+}
 
 class Token {
   constructor(c) {
@@ -27,10 +41,6 @@ class Eof extends Token {
   }
 }
 
-const VARIABLES = {
-  x: 10,
-};
-
 class S {
   constructor(c) {
     this.c = c;
@@ -46,7 +56,7 @@ class S {
 }
 class SAtom extends S {
   print() {
-    process.stdout.write(this.c);
+    log(this.c);
   }
 
   toArray() {
@@ -71,12 +81,12 @@ class SCons extends S {
   }
 
   print() {
-    process.stdout.write("(" + this.c);
+    log("(" + this.c);
     this.next.forEach((e) => {
       process.stdout.write(" ");
       e.print();
     });
-    process.stdout.write(")");
+    log(")");
   }
 
   toArray() {
@@ -99,11 +109,60 @@ class SCons extends S {
 
 class Lexer {
   constructor(text) {
-    this.tokens = text
-      .split("")
-      .filter((c) => c != " ")
-      .flatMap((c) => Token.fromChar(c))
-      .reverse();
+    function evalNum(que) {
+      //   console.log(que);
+      if (que.isEmpty()) {
+        return "";
+      }
+      if (!isNumber(q.peek())) {
+        return "";
+      }
+      const a = q.dequeue();
+      if (!isNumber(q.peek())) {
+        return `${a}`;
+      }
+      return `${a}` + evalNum(que);
+    }
+
+    var arr = [];
+    let fun_buff = "";
+    function lexify(q) {
+      if (q.isEmpty()) {
+        return;
+      }
+      const a = q.dequeue();
+      if (isOperator(a)) {
+        arr.push(new Op(a));
+        if ((a == ")") & (q.peek() == "(")) {
+          arr.push(new Op("*"));
+        }
+      } else if (isVariable(a)) {
+        fun_buff += a;
+        if (q.isEmpty() || !isVariable(q.peek())) {
+          if (isFunction(fun_buff)) {
+            arr.push(new Op(fun_buff));
+            fun_buff = "";
+          } else {
+            arr.push(new Atom(fun_buff));
+          }
+          fun_buff = "";
+        }
+
+        lexify(q);
+      } else if (isNumber(a)) {
+        // q.enqueue(a);
+        const n = a + evalNum(q);
+        arr.push(new Atom(n));
+        if (isVariable(q.peek())) {
+          arr.push(new Op("*"));
+        }
+      }
+      lexify(q);
+    }
+
+    const q = Queue.fromArray(text);
+    lexify(q);
+    this.tokens = arr.reverse();
   }
 
   next() {
@@ -144,11 +203,8 @@ function expr_bp(lexer, min_bp) {
       lhs = new SCons(lhs.c, [rhs]);
     }
   } else {
-    process.stdout.write("bad token: ");
-    lhs.print();
-    c;
-    process.stdout.write("\n");
-    return;
+    log("bad token: ");
+    throw new Error("bad token: " + lhs.c);
   }
 
   while (true) {
@@ -159,8 +215,8 @@ function expr_bp(lexer, min_bp) {
     } else if (op instanceof Op) {
       op = op.c;
     } else {
-      process.stdout.write("bad token: " + op.c);
-      return;
+      log("bad token: " + op.c);
+      throw new Error("bad token: " + lhs.toString());
     }
 
     const post = postfix_binding_power(op);
@@ -203,6 +259,8 @@ function infix_binding_power(op) {
     case "*":
     case "/":
       return [3, 4];
+    case "^":
+      return [6, 5];
     default:
       return null;
   }
@@ -213,6 +271,14 @@ function prefix_binding_power(op) {
     case "-":
     case "+":
       return 5;
+    case "abs":
+    case "cos":
+    case "sin":
+    case "ln":
+    case "sqrt":
+    case "tan":
+    case "exp":
+      return 7;
     default:
       throw new Error("bad op " + op);
   }
@@ -220,18 +286,19 @@ function prefix_binding_power(op) {
 
 function postfix_binding_power(op) {
   switch (op) {
-    case "!":
-      return 7;
+    // case "!":
+    //   return 7;
     default:
       return null;
   }
 }
 
-// process.stdout.write(")");
+// log(")");
 
-// const s = expr("x*x");
-// expr("--1 * 2").print();
-// console.log(s);
+// const s = expr("sqrt(abs(-25) + 11)");
+// // expr("--1 * 2").print();
+// console.log(s.toString());
+// console.log(s.eval());
 // console.log(s.eval(VARIABLES));
 // console.log(s);
 // traverse(s);

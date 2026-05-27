@@ -11,12 +11,21 @@ class Queue {
   isEmpty() {
     return this.items.length <= 0;
   }
+  peek() {
+    return this.items[0];
+  }
   flat() {
     return this.items;
   }
   copy() {
     const q = new Queue();
     q.items = [...this.items];
+    return q;
+  }
+
+  static fromArray(arr) {
+    const q = new Queue();
+    q.items = [...arr];
     return q;
   }
 }

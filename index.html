@@ -10,17 +10,182 @@
     <script type="application/javascript" src="scripts/libs/cameracontroller.js"></script>
     <!-- <script type="module" src="scripts/utils.js"></script> -->
     <script type="module" src="scripts/canvas.js"></script>
+    <style>
+        /* font source: https://www.ctan.org/pkg/lm */
+        @font-face {
+            font-family: "lm";
+            src: url("fonts/lmroman10-regular.otf") format("opentype");
+            font-weight: normal;
+            font-style: normal;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            font-family: "lm";
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+
+            display: flex;
+            justify-content: center;
+            align-items: center;
+
+            overflow: hidden;
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 300px 800px 300px;
+            gap: 2rem;
+            align-items: start;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            width: 800px;
+            height: 800px;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 800px;
+            height: 800px;
+            border: 1px solid black;
+        }
+
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 99;
+
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            width: 100%;
+        }
+
+        #labels {
+            pointer-events: none;
+        }
+
+        .left-panel,
+        .right-panel {
+            height: 800px;
+
+            padding: 1rem;
+
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+        }
+
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        #error-message {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            z-index: 101;
+
+            max-width: 350px;
+            padding: 0.5rem 0.75rem;
+
+            color: darkred;
+            background: #ffe5e5;
+            border: 1px solid darkred;
+
+            display: none;
+        }
+
+        #eq-input {
+            position: absolute;
+
+            left: 1px;
+            right: 0;
+            bottom: 0;
+
+            width: 100%;
+            height: 60px;
+
+            padding: 0 1rem;
+
+            font-size: 1.4rem;
+
+            border: none;
+            border-top: 1px solid black;
+
+            z-index: 100;
+
+            box-sizing: border-box;
+        }
+
+        .controls input,
+        .controls button {
+            padding: 0.5 rem;
+            font-size: 1rem;
+        }
+    </style>
 </head>
 
 <body onload="main()">
+    <div class="container">
 
-    <canvas id="c" style="width: 800px; height: 600px; border: solid 1px black;" class="centeredcanvas" width="1600"
-        height="1200"></canvas>
-    <input id="eq-input" type="text">
-    <button id="zoom-in">-</button>
-    <button id="center">o</button>
-    <button id="zoom-out">+</button>
-    <div id="eq-list"></div>
+        <div class="left-panel">
+            <ul>
+                <li>following operators can be used: +, -, *, /, ^, (, ) as well as standard functions such as: exp, ln,
+                    sin, cos, tan, abs, sqrt;</li>
+                <li>use <em>x</em> for variables; </li>
+                <li>you can also use <em>e</em>\! </li>
+                <li>you can change the tick count for the whole graph as well as step sizes for the axis;</li>
+                <li>the solver and renderer do not work well with asymptotic functions as the vertices are drawn with
+                    GL.LINES;</li>
+                <li>raw equations are parsed with <a
+                        href="https://en.wikipedia.org/wiki/Operator-precedence_parser#Pratt_parsing">Pratt parsing</a>
+                    and evalated with JS Math;</li>
+                <li>all [A-Za-z]+ will be parsed but only aforementioned functions and <em>x</em> and <em>e</em> will be
+                    evaluated.
+                </li>
+
+            </ul>
+        </div>
+
+        <div class="canvas-wrapper">
+            <div id="error-message"></div>
+
+            <canvas id="c" width="800" height="800"></canvas>
+
+            <canvas id="labels" width="800" height="800"></canvas>
+
+            <input id="eq-input" placeholder="e.g. sqrt(abs(sin(x)*cos(x)))" type="text">
+            <div class="controls">
+                <input id="grid-input" placeholder="tick count (=6)" type="text">
+                <input id="x-tick" placeholder="x-tick step (=1)" type="text">
+                <input id="y-tick" placeholder="y-tick step (=1)" type="text">
+                <button id="center">Center</button>
+                <button id="clear">Clear</button>
+            </div>
+            sqrt(abs(sin(x)*cos(x) + ln(x*x + 1))) / (1 + sqrt(abs(x)))
+        </div>
+
+        <div class="right-panel">
+            <h2>graphed <a href="https://en.wikipedia.org/wiki/S-expression">S-expressions:</a></h2>
+            <ul id="eq-list"></ul>
+        </div>
+    </div>
+
+
+    </div>
 </body>
 
 </html>

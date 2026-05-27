@@ -26,38 +26,6 @@ export function concatUInt8(arr) {
   return out;
 }
 
-function enterEq(ele) {
-  if (event.key === "Enter") {
-    const input = ele;
-    console.log("Entered equation: " + input);
-    // alert(ele.value);
-    // const tokens = ele.value.split(" ");
-    // console.log(tokens);
-
-    const s_struct = expr(input);
-    // console.log(s_struct);
-
-    state.equations.push(new EQFunction(input, rgba(255, 0, 0, 255), s_struct));
-
-    const newequation = document.createElement("div");
-    const index = state.equations.length - 1;
-    console.log(index);
-    newequation.textContent = s_struct.toString();
-    document.getElementById("eq-list").appendChild(newequation);
-
-    return index;
-    // console.log(state.equations);
-
-    // const VARS = {
-    //   x: 10,
-    // };
-    // const s = expr(ele.value);
-    // s.eval(VARS);
-    // console.log("brackets: " + brackets);
-    // console.log("result: " + s.eval(VARS));
-  }
-}
-
 function zoomIn(ax_o_x, ax_o_y) {
   state.zoom *= 1.1;
 }
@@ -66,43 +34,36 @@ function zoomOut(ax_o_x, ax_o_y) {
   state.zoom *= 0.9;
 }
 
-function resetZoom() {
-  state.zoom = 1;
-}
+function resetZoom() {}
 
-function linspace(min, max, n) {
+export function linspace(min, max, n) {
   return Array.from({ length: n }, (_, i) => min + (i * (max - min)) / (n - 1));
 }
 
 const rgba = (r, g, b, a = 255) => new Uint8Array([r, g, b, a]);
 
 class EQFunction {
-  constructor(eq, color, s_struct) {
+  constructor(eq, color, s_struct, min_x, max_x, resolution = 400) {
     this.eq = eq;
     this.color = color;
     this.s_struct = s_struct;
-    this.x = linspace(-1 * state.zoom, 1 * state.zoom, 400);
-    this.y = this.x.map((x) => s_struct.eval({ x }));
+    this.solve(min_x, max_x, resolution);
   }
 
-  solve(ax_o_x, ax_o_y) {
-    this.x = linspace(
-      (-1 - Math.abs(ax_o_x)) * state.zoom,
-      (1 + Math.abs(ax_o_x)) * state.zoom,
-      400,
-    );
-    {
-    }
-    for (let i = 0; i < this.x.length; i++) {
-      this.y[i] = this.s_struct.eval({ x: this.x[i] - ax_o_x }) + ax_o_y;
-    }
+  solve(min_x, max_x, resolution = 400) {
+    this.x = linspace(min_x, max_x, resolution);
+    this.y = this.x.map((x) => this.s_struct.eval({ x, e: Math.E }));
+    console.log(this.x);
+    console.log(this.y);
   }
 
-  getPositions() {
+  getPositions(xmin, xmax, ymin, ymax) {
     const verts = new Float32Array(this.x.length * 3);
     for (let i = 0; i < this.x.length; i++) {
-      verts[i * 3] = this.x[i]; // x
-      verts[i * 3 + 1] = this.y[i]; // y
+      let x = this.x[i];
+      let y = this.y[i];
+      verts[i * 3] = ((x - xmin) / (xmax - xmin)) * 2 - 1;
+      verts[i * 3 + 1] = ((y - ymin) / (ymax - ymin)) * 2 - 1; // y
       verts[i * 3 + 2] = 0.0; // z
     }
     return verts;
@@ -135,4 +96,4 @@ class CanvasData {
   }
 }
 
-export { enterEq, zoomIn, zoomOut, resetZoom, rgba, EQFunction, CanvasData };
+export { zoomIn, zoomOut, resetZoom, rgba, EQFunction, CanvasData };

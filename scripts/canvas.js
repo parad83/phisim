@@ -1,5 +1,7 @@
 // code HEAVLY inspired by https://registry.khronos.org/webgl/sdk/demos/google/shiny-teapot/index.html
 var gl = null;
+var labels_ctx = null;
+var labelsCanvas = null;
 var g_programObject = null;
 var g_width = 0;
 var g_height = 0;
@@ -20,10 +22,8 @@ var a_positionLoc = -1;
 var u_mvpLoc = -1;
 var a_colorLoc = -1;
 
-var x_ticks = 10;
-var y_ticks = 10;
-
 var controller = null;
+const blackColor = [0, 0, 0, 1];
 
 // TODO move all to main
 import {
@@ -32,13 +32,37 @@ import {
   zoomIn,
   zoomOut,
   resetZoom,
-  enterEq,
   concatFloat32,
   concatUInt8,
 } from "./utils.js";
 
 import { state } from "./state.js";
 import { expr } from "./libs/pratt.js";
+
+const axes_color = [140 / 255, 140 / 255, 140 / 255, 0.7];
+
+var axesBuffer = null;
+var axesCapacity = 0;
+
+var labelsArrayX = null;
+var labelsArrayY = null;
+var x_tick = 1;
+var y_tick = 1;
+
+function ensureAxesBuffer() {
+  const totalLines = 2 * (state.num_of_axis + 1) + 2;
+  const neededFloats = totalLines * 2 * 7;
+
+  labelsArrayX = new Array(totalLines / 2 - 2);
+  labelsArrayY = new Array(totalLines / 2 - 2);
+
+  if (!axesBuffer || axesCapacity < neededFloats) {
+    axesBuffer = new Float32Array(neededFloats);
+    axesCapacity = neededFloats;
+  }
+
+  return axesBuffer;
+}
 
 // const s_struct = expr("2*x");
 
@@ -86,10 +110,16 @@ var fragmentSource = [
 
 function main() {
   var c = document.getElementById("c");
+  labelsCanvas = document.getElementById("labels");
+  labels_ctx = labelsCanvas.getContext("2d");
+
+  labels_ctx.clearRect(0, 0, labelsCanvas.width, labelsCanvas.height);
+  labels_ctx.fillStyle = "black";
+  labels_ctx.font = "12px lm";
 
   var ratio = window.devicePixelRatio ? window.devicePixelRatio : 1;
   c.width = 800 * ratio;
-  c.height = 600 * ratio;
+  c.height = 800 * ratio;
 
   gl = WebGLUtils.setupWebGL(c);
 
@@ -127,14 +157,6 @@ function main() {
   //   drawAxis();
 }
 
-function updateEquation(index) {
-  state.equations[index].solve(ax_o_x, ax_o_y);
-  positions = concatFloat32(state.equations.map((eq) => eq.getPositions()));
-  colors = concatUInt8(state.equations.map((eq) => eq.getColors()));
-  //   console.log(positions[0]);
-  //   bindBuffers();
-}
-
 function init() {
   gl.viewport(0, 0, g_width, g_height);
   //   gl.enable(gl.DEPTH_TEST);
@@ -164,7 +186,7 @@ function initBuffers() {
 }
 
 function drawAxis() {
-  const verts = buildAxis();
+  const { verts, vertexCount } = buildAxis();
 
   gl.bindBuffer(gl.ARRAY_BUFFER, g_axes_vbo);
   gl.bufferData(gl.ARRAY_BUFFER, verts, gl.DYNAMIC_DRAW);
@@ -188,33 +210,21 @@ function drawAxis() {
 
   // width can only be 1 on firefox
   //   gl.disable(gl.DEPTH_TEST);
-  gl.drawArrays(gl.LINES, 0, 4);
+  gl.drawArrays(gl.LINES, 0, vertexCount);
   //   gl.enable(gl.DEPTH_TEST);
 }
 
 function draw() {
   gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  labels_ctx.clearRect(0, 0, labelsCanvas.width, labelsCanvas.height);
+
   checkGLError();
 
   projection.loadIdentity();
-  projection.ortho(
-    -state.zoom, // left
-    state.zoom, // right
-    -state.zoom, // bottom
-    state.zoom, // top
-    -1, // near
-    1, // far
-  );
-  //   projection.perspective(260, 1, 10, 10000);
+  projection.scale(g_height / g_width, 1, 1);
 
   view.loadIdentity();
-  //   view.translate(0, -10, -10.0);
-
   model.loadIdentity();
-  //   model.rotate(controller.xRot, 1, 0, 0);
-  //   model.rotate(controller.yRot, 0, 1, 0);
-
-  //   model.translate(pos_x, pos_y, 0);
 
   var mvp = new Matrix4x4();
   mvp.multiply(model);
@@ -226,6 +236,8 @@ function draw() {
   gl.useProgram(g_programObject);
 
   gl.uniformMatrix4fv(u_mvpLoc, false, new Float32Array(mvp.elements));
+
+  drawAxis();
 
   gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_pos);
   gl.enableVertexAttribArray(a_positionLoc);
@@ -239,15 +251,7 @@ function draw() {
   // maybe later optimise for constant functions and then need to change but wtv
   // always 400 positions for each equation
   // since 3 coordinates its 3 * 400
-  console.log(
-    "eqcount",
-    state.equations.length,
-    "verts",
-    positions.length / 3,
-    "colors",
-    colors.length,
-  );
-  console.log(state.equations.map((e) => e.s_struct));
+
   const vertsPerEq = 400;
   const totalVerts = positions.length / 3;
   //   gl.disable(gl.DEPTH_TEST);
@@ -255,7 +259,6 @@ function draw() {
     gl.drawArrays(gl.LINE_STRIP, first, vertsPerEq);
   }
   //   gl.enable(gl.DEPTH_TEST);
-  drawAxis();
   checkGLError();
 }
 
@@ -312,87 +315,105 @@ function checkGLError() {
   if (error != gl.NO_ERROR && error != gl.CONTEXT_LOST_WEBGL) {
     var str = "GL Error: " + error;
     console.log(str);
-    // throw str;
+    alert(str);
   }
 }
 
-// function buildSemiAxis(from, f) {
-//   const interval = (2 * ax_o_x) / x_ticks;
-//   //   const interval_y = (2 * ax_o_y) / y_ticks;
-
-//   const verts = new Float32Array(interval * 7*2);
-
-//   for (let i = 0; i < interval; i++) {
-//     verts[i * 14] = 1
-//   }
-// }
-
 function buildAxis() {
-  // with black colors
-  return new Float32Array([
-    ax_o_x,
-    -state.zoom,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    1.0,
-    //
-    ax_o_x,
-    state.zoom,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    1.0,
-    //
-    -state.zoom,
-    ax_o_y,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    1.0,
-    //
-    state.zoom,
-    ax_o_y,
-    0.0,
-    0.0,
-    0.0,
-    0.0,
-    1.0,
-  ]);
+  const axes = ensureAxesBuffer();
+  const vertexCount = updateAxes(axes, ax_o_x, ax_o_y, axes_color);
+
+  return { verts: axes, vertexCount };
+}
+
+function updateAxes(axes, x, y, color) {
+  const spacing = 2 / state.num_of_axis;
+
+  const offsetX = x % spacing;
+  const offsetY = y % spacing;
+
+  let line = 0;
+
+  function writeLine(x1, y1, z1, x2, y2, z2, color) {
+    let o = line * 2 * 7;
+
+    axes[o++] = x1;
+    axes[o++] = y1;
+    axes[o++] = z1;
+    axes[o++] = color[0];
+    axes[o++] = color[1];
+    axes[o++] = color[2];
+    axes[o++] = color[3];
+
+    axes[o++] = x2;
+    axes[o++] = y2;
+    axes[o++] = z2;
+    axes[o++] = color[0];
+    axes[o++] = color[1];
+    axes[o++] = color[2];
+    axes[o++] = color[3];
+
+    line++;
+  }
+
+  for (let i = 0; i <= state.num_of_axis; i++) {
+    const gx = -1 + offsetX + i * spacing;
+    const gy = -1 + offsetY + i * spacing;
+
+    const lx = ((gx - ax_o_x) / spacing) * state.x_tick;
+    const ly = ((gy - ax_o_y) / spacing) * state.y_tick;
+
+    // let rounding_offset = state.num_of_axis % 2 == 0 ? )? 0 : 2;A
+    let rounding_offset = 2;
+    if (lx.toFixed(1) != 0) {
+      label(lx.toFixed(rounding_offset), gx, ax_o_y - 0.02);
+    }
+    if (ly.toFixed(1) != 0) {
+      label(ly.toFixed(rounding_offset), ax_o_x - 0.06, gy);
+    }
+
+    writeLine(gx, -1, 0, gx, 1, 0, color);
+    writeLine(-1, gy, 0, 1, gy, 0, color);
+  }
+
+  // draw main axes last so they stay visible
+  writeLine(x, -1, 0, x, 1, 0, blackColor);
+  writeLine(-1, y, 0, 1, y, 0, blackColor);
+  label("0", x - 0.02, y - 0.02);
+
+  return line * 2;
 }
 
 function updateAll() {
-  console.log(state.equations.map((eq) => eq.getPositions().slice(0, 10)));
-  state.equations.forEach((eq) => eq.solve(ax_o_x, ax_o_y));
-  positions = concatFloat32(state.equations.map((eq) => eq.getPositions()));
+  //   console.log(state.equations.map((eq) => eq.getPositions().slice(0, 10)));
+  const { xmin, xmax, ymin, ymax } = minmax();
+  try {
+    state.equations.forEach((eq) => eq.solve(xmin, xmax));
+  } catch (err) {
+    console.log("aught");
+    showError(err);
+  }
+  positions = concatFloat32(
+    state.equations.map((eq) => eq.getPositions(xmin, xmax, ymin, ymax)),
+  );
   colors = concatUInt8(state.equations.map((eq) => eq.getColors()));
 }
 
 window.main = main;
 
 window.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("zoom-in").addEventListener("click", () => {
-    zoomIn(ax_o_x, ax_o_y);
-    updateAll();
-    bindBuffers();
-    draw();
-    // drawAxis();
-  });
-
-  document.getElementById("zoom-out").addEventListener("click", () => {
-    zoomOut(ax_o_x, ax_o_y);
-    updateAll();
-    bindBuffers();
-    draw();
-    // drawAxis();
-  });
-
   document.getElementById("center").addEventListener("click", () => {
-    resetZoom();
+    ax_o_x = 0;
+    ax_o_y = 0;
 
+    updateAll();
+    bindBuffers();
+    draw();
+    // drawAxis();
+  });
+  document.getElementById("clear").addEventListener("click", () => {
+    state.equations = [];
+    updateAll();
     bindBuffers();
     draw();
     // drawAxis();
@@ -409,6 +430,138 @@ window.addEventListener("DOMContentLoaded", () => {
       bindBuffers();
       draw();
     }
-    console.log(positions.length, colors.length);
+    // console.log(positions.length, colors.length);
+  });
+  document.getElementById("grid-input").addEventListener("keydown", () => {
+    // resetZoom();
+    // drawAxis();
+    if (event.key === "Enter") {
+      // cheakkyyyy
+      var val = document.getElementById("grid-input").value;
+      if (val > 0) {
+        state.num_of_axis = val;
+        updateAll();
+        bindBuffers();
+
+        draw();
+      }
+    }
+  });
+  document.getElementById("x-tick").addEventListener("keydown", () => {
+    // resetZoom();
+    // drawAxis();
+    if (event.key === "Enter") {
+      // cheakkyyyy
+      var val = document.getElementById("x-tick").value;
+      if (val > 0) {
+        state.x_tick = val;
+        updateAll();
+        bindBuffers();
+
+        draw();
+      }
+    }
+  });
+  document.getElementById("y-tick").addEventListener("keydown", () => {
+    // resetZoom();
+    // drawAxis();
+    if (event.key === "Enter") {
+      // cheakkyyyy
+      var val = document.getElementById("y-tick").value;
+      if (val > 0) {
+        state.y_tick = val;
+        updateAll();
+        bindBuffers();
+
+        draw();
+      }
+    }
   });
 });
+
+function ndcToCanvas(nx, ny, canvas) {
+  return {
+    x: (nx + 1) * 0.5 * canvas.width,
+    y: (1 - (ny + 1) * 0.5) * canvas.height,
+  };
+}
+
+function label(text, x, y) {
+  const p = ndcToCanvas(x, y, labelsCanvas);
+  labels_ctx.fillText(text, p.x - 4, p.y + 4);
+}
+
+function minmax() {
+  const visibleXUnits = state.num_of_axis * state.x_tick;
+  const visibleYUnits = state.num_of_axis * state.y_tick;
+
+  const centerX = -ax_o_x * (visibleXUnits / 2);
+  const centerY = -ax_o_y * (visibleYUnits / 2);
+
+  const xmin = centerX - visibleXUnits / 2;
+  const xmax = centerX + visibleXUnits / 2;
+  const ymin = centerY - visibleYUnits / 2;
+  const ymax = centerY + visibleYUnits / 2;
+
+  return { xmin, xmax, ymin, ymax };
+}
+
+function enterEq(ele) {
+  if (event.key === "Enter") {
+    const input = ele;
+    // alert(ele.value);
+    // const tokens = ele.value.split(" ");
+    // console.log(tokens);
+
+    let s_struct;
+
+    try {
+      s_struct = expr(input);
+    } catch (err) {
+      showError(err);
+      return;
+    }
+    // console.log(s_struct);
+
+    const { xmin, xmax, ymin, ymax } = minmax();
+
+    state.equations.push(
+      new EQFunction(
+        input,
+        rgba(255, 0, 0, 255),
+        s_struct,
+        xmin,
+        xmax,
+        ymin,
+        ymax,
+      ),
+    );
+
+    const newequation = document.createElement("li");
+    const index = state.equations.length - 1;
+    newequation.textContent = s_struct.toString();
+    document.getElementById("eq-list").appendChild(newequation);
+
+    return index;
+    // console.log(state.equations);
+
+    // const VARS = {
+    //   x: 10,
+    // };
+    // const s = expr(ele.value);
+    // s.eval(VARS);
+    // console.log("brackets: " + brackets);
+    // console.log("result: " + s.eval(VARS));
+  }
+}
+
+function showError(message) {
+  const errorBox = document.getElementById("error-message");
+
+  errorBox.textContent = message;
+  errorBox.style.display = "block";
+
+  setTimeout(() => {
+    errorBox.style.display = "none";
+  }, 3000);
+}

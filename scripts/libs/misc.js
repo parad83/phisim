@@ -1,4 +1,5 @@
-const INPUT_REGEX = "/^(?:[a-z]|+|-|*|:|^|(|))(?: (?:[a-z]|+|-|*|:|^||(|)))*$/";
+const INPUT_REGEX =
+  "/^(?:[a-z]|+|-|*|\/|^|(|))(?: (?:[a-z]|+|-|*|\/|^||(|)))*$/";
 
 const OPERATORS = {
   "+": (a, b) => a + b,
@@ -8,7 +9,27 @@ const OPERATORS = {
   "/": (a, b) => a / b,
   "!unary": (a) => factorial(a),
   "-unary": (a) => -a,
+  "^": (a, b) => a ** b,
+  "(": null,
+  ")": null,
+  cosunary: (a) => Math.cos(a),
+  sinunary: (a) => Math.sin(a),
+  tanunary: (a) => Math.tan(a),
+  sqrtunary: (a) => Math.sqrt(a),
+  lnunary: (a) => Math.log(a),
+  absunary: (a) => Math.abs(a),
+  expunary: (a) => Math.E ^ a,
 };
+
+const FUNCTIONS_SET = new Set([
+  "cos",
+  "sin",
+  "tan",
+  "ln",
+  "abs",
+  "sqrt",
+  "exp",
+]);
 
 const factorial = (n) => {
   if (n <= 1) {
@@ -24,18 +45,7 @@ const operators_table = (op, arity) => {
   return (a, b) => OPERATORS[op](a, b);
 };
 
-// const OPERATORS_LIST = Object.keys(OPERATORS);
-const OPERATORS_LIST = ["+", "-", "*", "/", "!", "(", ")"];
-
-const PRECEDENCE = {
-  "(": 0,
-  ")": 0,
-  "^": 1,
-  "*": 2,
-  ":": 2,
-  "+": 3,
-  "-": 3,
-};
+const OPERATORS_SET = new Set(Object.keys(OPERATORS));
 
 function getFont(token) {
   switch (token) {
@@ -63,15 +73,25 @@ function getFonts(tokens) {
 }
 
 const isVariable = function (t) {
+  if (!t) {
+    return false;
+  }
   return t.match(/^[A-Za-z]$/);
 };
 
 const isNumber = function (t) {
+  if (!t) {
+    return false;
+  }
   return t.match(/\d+/);
 };
 
 const isOperator = function (t) {
-  return OPERATORS_LIST.includes(t);
+  return OPERATORS_SET.has(t);
+};
+
+export const isFunction = function (t) {
+  return FUNCTIONS_SET.has(t);
 };
 
 function assert(result, expected) {
@@ -122,7 +142,6 @@ export {
   isOperator,
   getFonts,
   isNumber,
-  PRECEDENCE,
   OPERATORS,
   INPUT_REGEX,
 };
