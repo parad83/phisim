@@ -1,5 +1,7 @@
 # Functions grapher
 
+[Demo](https://parad83.github.io/analysim/) - [Repo](https://github.com/parad83/analysim)
+
 <p float="left">
   <img src="cool_function.png" width="49%" />
   <img src="cool_parametric_func.png" width="49%" />
