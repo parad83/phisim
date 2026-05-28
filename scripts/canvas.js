@@ -21,26 +21,20 @@ var a_colorLoc = -1;
 const blackColor = [0.0, 0.0, 0.0, 1.0];
 
 var controller = null;
+var isParametric = false;
 
 // TODO move all to main
-import {
-  rgba,
-  EQFunction,
-  zoomIn,
-  zoomOut,
-  resetZoom,
-  concatFloat32,
-  concatUInt8,
-  linspace,
-} from "./utils.js";
+import { EQFunction, linspace } from "./utils.js";
 
 import { state } from "./state.js";
 import { expr } from "./libs/pratt.js";
 
-const axes_color = [140 / 255, 140 / 255, 140 / 255, 0.7];
+const axes_color = [140 / 255, 140 / 255, 140 / 255, 0.7]; // cool gray from another project
 
 var axesBuffer = null;
 var axesCapacity = 0;
+
+var tempParEq = {};
 
 var labelsArrayX = null;
 var labelsArrayY = null;
@@ -125,31 +119,20 @@ function main() {
 
   controller = new CameraController(c);
   controller.onchange = function (xRot, yRot) {
-    // pos_x -= controller.deltaX * s;
-    // pos_y += controller.deltaY * s;
-
     const worldPerPixelX = (2 * state.zoom) / g_width;
     const worldPerPixelY = (2 * state.zoom) / g_height;
 
     ax_o_x += -controller.deltaX * worldPerPixelX * 1 * s;
     ax_o_y += controller.deltaY * worldPerPixelY * 1 * s;
 
-    // ax_o_x = Math.max(-1, Math.min(1, pos_x));
-    // ax_o_y = Math.max(-1, Math.min(1, pos_y));
-    // ax_o_x = pos_x;
-    // ax_o_y = pos_y;
-
     bindBuffers();
 
     draw();
-    // drawAxis();
   };
 
   init();
-  //   updateEquation();
   bindBuffers();
   draw();
-  //   drawAxis();
 }
 
 function init() {
@@ -160,8 +143,6 @@ function init() {
   gl.clearColor(1.0, 1.0, 1.0, 1.0);
   initBuffers();
   initShaders();
-  //   g_bumpTexture = loadTexture("bump.jpg");
-  //   g_envTexture = loadCubeMap("skybox", "jpg");
 }
 
 function bindBuffers() {
@@ -176,7 +157,6 @@ function bindBuffers() {
 function initBuffers() {
   g_vbo_pos = gl.createBuffer();
   g_axes_vbo = gl.createBuffer();
-  //   bindBuffers();
 }
 
 function drawAxis() {
@@ -232,6 +212,8 @@ function draw() {
     gl.useProgram(eq.program);
 
     gl.uniformMatrix4fv(eq.u_mvpLoc, false, new Float32Array(mvp.elements));
+    gl.uniform1f(eq.u_tminLoc, eq.u_t_min);
+    gl.uniform1f(eq.u_tmaxLoc, eq.u_t_max);
     gl.uniform1f(eq.u_xminLoc, xmin);
     gl.uniform1f(eq.u_xmaxLoc, xmax);
     gl.uniform1f(eq.u_yminLoc, ymin);
@@ -406,17 +388,17 @@ window.addEventListener("DOMContentLoaded", () => {
   });
   document.getElementById("clear").addEventListener("click", () => {
     state.equations = [];
+    document.getElementById("eq-list").innerHTML = "";
     bindBuffers();
     draw();
   });
   document.getElementById("eq-input").addEventListener("keydown", () => {
     if (event.key === "Enter") {
       // cheakkyyyy
-      enterEq(document.getElementById("eq-input").value);
+      enterFuncEq(document.getElementById("eq-input").value);
       bindBuffers();
       draw();
     }
-    // console.log(positions.length, colors.length);
   });
   document.getElementById("grid-input").addEventListener("keydown", () => {
     if (event.key === "Enter") {
@@ -456,7 +438,48 @@ window.addEventListener("DOMContentLoaded", () => {
       var val = document.getElementById("sample-size").value;
       if (val > 0) {
         state.sample_size = val;
+        bindBuffers();
+        draw();
+      }
+    }
+  });
+  document.getElementById("x-eq-input").addEventListener("keydown", () => {
+    if (event.key === "Enter") {
+      enterParamcEqX(document.getElementById("x-eq-input").value);
+      if (paramhasallparams()) {
+        // enterParamcEq(tempParEq);
+        bindBuffers();
+        draw();
+      }
+    }
+  });
+  document.getElementById("y-eq-input").addEventListener("keydown", () => {
+    if (event.key === "Enter") {
+      enterParamcEqY(document.getElementById("y-eq-input").value);
 
+      if (paramhasallparams()) {
+        enterParamcEq(tempParEq);
+        bindBuffers();
+        draw();
+      }
+    }
+  });
+  document.getElementById("tmin-input").addEventListener("keydown", () => {
+    if (event.key === "Enter") {
+      enterParamcEqTmin(document.getElementById("tmin-input").value);
+
+      if (paramhasallparams()) {
+        enterParamcEq(tempParEq);
+        bindBuffers();
+        draw();
+      }
+    }
+  });
+  document.getElementById("tmax-input").addEventListener("keydown", () => {
+    if (event.key === "Enter") {
+      enterParamcEqTmax(document.getElementById("tmax-input").value);
+      if (paramhasallparams()) {
+        enterParamcEq(tempParEq);
         bindBuffers();
         draw();
       }
@@ -491,39 +514,96 @@ function minmax() {
   return { xmin, xmax, ymin, ymax };
 }
 
-function enterEq(ele) {
-  if (event.key === "Enter") {
-    const input = ele;
+function enterParamcEqX(ele) {
+  tempParEq.s_structx = ele;
+}
 
-    let s_struct;
+function enterParamcEqY(ele) {
+  tempParEq.s_structy = ele;
+}
 
-    try {
-      s_struct = expr(input);
-    } catch (err) {
-      showError(err);
-      return;
-    }
+function enterParamcEqTmin(ele) {
+  tempParEq.u_t_min = ele;
+}
 
-    try {
-      const eq = new EQFunction(input, rgba(255, 0, 0, 255), s_struct);
-      eq.program = compileEquationShader(eq.template);
+function enterParamcEqTmax(ele) {
+  tempParEq.u_t_max = ele;
+}
 
-      eq.a_tLoc = gl.getAttribLocation(eq.program, "a_t");
-      eq.u_mvpLoc = gl.getUniformLocation(eq.program, "u_mvp");
-      eq.u_xminLoc = gl.getUniformLocation(eq.program, "u_xmin");
-      eq.u_xmaxLoc = gl.getUniformLocation(eq.program, "u_xmax");
-      eq.u_yminLoc = gl.getUniformLocation(eq.program, "u_ymin");
-      eq.u_ymaxLoc = gl.getUniformLocation(eq.program, "u_ymax");
+function enterParamcEq(input) {
+  let s_structx;
+  let s_structy;
 
-      state.equations.push(eq);
-    } catch (err) {
-      showError(err);
-    }
+  let mint = expr(input.u_t_min).evalNum().toFixed(2);
+  let maxt = expr(input.u_t_max).evalNum().toFixed(2);
+  console.log(expr(input.u_t_max));
+  console.log(maxt);
 
-    const newequation = document.createElement("li");
-    newequation.textContent = s_struct.toString();
-    document.getElementById("eq-list").appendChild(newequation);
+  try {
+    s_structx = expr(input.s_structx);
+    s_structy = expr(input.s_structy);
+  } catch (err) {
+    showError(err);
+    return;
   }
+  const eq = new EQFunction(
+    input,
+    "parametric",
+    s_structy,
+    s_structx,
+    mint,
+    maxt,
+  );
+
+  eq.program = compileEquationShader(eq.template);
+
+  eq.a_tLoc = gl.getAttribLocation(eq.program, "a_t");
+  eq.u_mvpLoc = gl.getUniformLocation(eq.program, "u_mvp");
+  eq.u_xminLoc = gl.getUniformLocation(eq.program, "u_xmin");
+  eq.u_xmaxLoc = gl.getUniformLocation(eq.program, "u_xmax");
+  eq.u_yminLoc = gl.getUniformLocation(eq.program, "u_ymin");
+  eq.u_ymaxLoc = gl.getUniformLocation(eq.program, "u_ymax");
+  eq.u_tminLoc = gl.getUniformLocation(eq.program, "u_t_min");
+  eq.u_tmaxLoc = gl.getUniformLocation(eq.program, "u_t_max");
+
+  state.equations.push(eq);
+
+  const newequation = document.createElement("li");
+  newequation.innerHTML = `<p>x =  ${s_structx.toString()},<br> y = ${s_structy.toString()}, <br> t min = ${mint}, t max = ${maxt}</p>`;
+  document.getElementById("eq-list").appendChild(newequation);
+}
+
+function enterFuncEq(input) {
+  let s_struct;
+
+  try {
+    s_struct = expr(input);
+  } catch (err) {
+    showError(err);
+    return;
+  }
+
+  try {
+    const eq = new EQFunction(input, "function", s_struct);
+    eq.program = compileEquationShader(eq.template);
+
+    eq.a_tLoc = gl.getAttribLocation(eq.program, "a_t");
+    eq.u_mvpLoc = gl.getUniformLocation(eq.program, "u_mvp");
+    eq.u_xminLoc = gl.getUniformLocation(eq.program, "u_xmin");
+    eq.u_xmaxLoc = gl.getUniformLocation(eq.program, "u_xmax");
+    eq.u_yminLoc = gl.getUniformLocation(eq.program, "u_ymin");
+    eq.u_ymaxLoc = gl.getUniformLocation(eq.program, "u_ymax");
+    eq.u_tminLoc = gl.getUniformLocation(eq.program, "u_t_min");
+    eq.u_tmaxLoc = gl.getUniformLocation(eq.program, "u_t_max");
+
+    state.equations.push(eq);
+  } catch (err) {
+    showError(err);
+  }
+
+  const newequation = document.createElement("li");
+  newequation.textContent = s_struct.toString();
+  document.getElementById("eq-list").appendChild(newequation);
 }
 
 function showError(message) {
@@ -535,4 +615,24 @@ function showError(message) {
   setTimeout(() => {
     errorBox.style.display = "none";
   }, 3000);
+}
+
+const graphMode = document.getElementById("graph-mode");
+const functionInputs = document.getElementById("function-inputs");
+const paramInputs = document.getElementById("param-inputs");
+
+graphMode.addEventListener("change", () => {
+  isParametric = graphMode.value === "parametric";
+
+  functionInputs.hidden = isParametric;
+  paramInputs.hidden = !isParametric;
+});
+
+function paramhasallparams(eq = tempParEq) {
+  console.log(tempParEq);
+  if (eq.s_structy && eq.s_structx && eq.u_t_min && eq.u_t_max) {
+    return true;
+  }
+  showError("fill in all the input");
+  return false;
 }

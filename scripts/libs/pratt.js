@@ -54,6 +54,8 @@ class S {
   }
 
   eval(vars) {}
+
+  evalNum(vars) {}
 }
 class SAtom extends S {
   print() {
@@ -67,8 +69,19 @@ class SAtom extends S {
   eval(vars) {
     if (isNumber(this.c)) {
       return parseFloat(this.c).toFixed(2);
+    } else if (this.c == "pi") {
+      return Math.PI;
     }
-    return this.c;
+    return "x";
+  }
+
+  evalNum(vars) {
+    if (isNumber(this.c)) {
+      return parseFloat(this.c);
+    } else if (this.c == "pi") {
+      return Math.PI;
+    }
+    throw new Error("dont use variables");
   }
 
   toString() {
@@ -101,18 +114,28 @@ class SCons extends S {
   }
 
   eval(vars) {
-    return glsl_mapping(
+    return (
+      "(" +
+      glsl_mapping(
+        this.c,
+        this.next.length,
+      )(...this.next.map((e) => e.eval(vars))) +
+      ")"
+    );
+  }
+
+  evalNum(vars) {
+    return operators_table(
       this.c,
       this.next.length,
-    )(...this.next.map((e) => e.eval(vars)));
+    )(...this.next.map((e) => e.evalNum(vars)));
   }
 }
 
 class Lexer {
   constructor(text) {
-    function evalNum(que) {
-      //   console.log(que);
-      if (que.isEmpty()) {
+    function evalNum(q) {
+      if (q.isEmpty()) {
         return "";
       }
       if (!isNumber(q.peek())) {
@@ -122,7 +145,7 @@ class Lexer {
       if (!isNumber(q.peek())) {
         return `${a}`;
       }
-      return `${a}` + evalNum(que);
+      return `${a}` + evalNum(q);
     }
 
     var arr = [];
@@ -296,10 +319,10 @@ function postfix_binding_power(op) {
 
 // log(")");
 
-const s = expr("sin(x) + 2 / x");
+const s = expr("(sin(pi) + 2) / 1");
 // expr("--1 * 2").print();
-console.log(s);
 console.log(s.eval());
+console.log(s.evalNum());
 // console.log(s.eval(VARIABLES));
 // console.log(s);
 // traverse(s);

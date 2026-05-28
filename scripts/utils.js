@@ -42,20 +42,21 @@ export function linspace(min, max, n) {
 
 const rgba = (r, g, b, a = 255) => new Uint8Array([r, g, b, a]);
 
-const dynamic_vertex_source_part_a = [
+const dynamic_vertex_source_part_a_func = [
   "attribute float a_t;",
   "",
+  "uniform float u_t_min;",
+  "uniform float u_t_max;",
   "uniform float u_xmin;",
   "uniform float u_xmax;",
   "uniform float u_ymin;",
   "uniform float u_ymax;",
   "",
   "uniform mat4 u_mvp;",
-  "",
   "float f(float x) {",
 ];
 
-const dynamic_vertex_source_part_b = [
+const dynamic_vertex_source_part_b_func = [
   "}",
   "",
   "void main() {",
@@ -69,67 +70,67 @@ const dynamic_vertex_source_part_b = [
   "}",
 ];
 
+const dynamic_vertex_source_part_a_par = [
+  "attribute float a_t;",
+  "",
+  "uniform float u_t_min;",
+  "uniform float u_t_max;",
+  "uniform float u_xmin;",
+  "uniform float u_xmax;",
+  "uniform float u_ymin;",
+  "uniform float u_ymax;",
+  "",
+  "uniform mat4 u_mvp;",
+];
+
+const dynamic_vertex_source_part_b_par = [
+  "",
+  "void main() {",
+  "  float t = mix(u_t_min, u_t_max, a_t);",
+  "  float x = fx(t);",
+  "  float y = fy(t);",
+  "",
+  "  float ndx = ((x - u_xmin) / (u_xmax - u_xmin)) * 2.0 - 1.0;",
+  "  float ndy = ((y - u_ymin) / (u_ymax - u_ymin)) * 2.0 - 1.0;",
+  "",
+  "  gl_Position = u_mvp * vec4(ndx, ndy, 0.0, 1.0);",
+  "}",
+];
+
 class EQFunction {
-  constructor(eq, color, s_struct) {
+  constructor(eq, type, s_structy, s_structx = null, u_t_min = 0, u_t_max = 0) {
     this.eq = eq;
-    this.color = color;
-    this.s_struct = s_struct;
+    this.type = type;
+    this.s_structy = s_structy;
+    this.s_structx = s_structx;
+    this.u_t_min = u_t_min;
+    this.u_t_max = u_t_max;
 
-    let glsl = s_struct.eval();
-    let row = `return ${glsl};`;
-    let template = [];
-    template.push(dynamic_vertex_source_part_a);
-    template.push(row);
-    template.push(dynamic_vertex_source_part_b);
-    this.template = dynamic_vertex_source_part_a
-      .concat(row, dynamic_vertex_source_part_b)
-      .join("\n");
-
-    // this.solve(min_x, max_x, resolution);
-  }
-
-  //   solve(min_x, max_x, resolution = 400) {
-  //     this.x = linspace(min_x, max_x, resolution);
-  //     this.y = this.x.map((x) => this.s_struct.eval({ x, e: Math.E }));
-  //   }
-
-  //   getPositions(xmin, xmax, ymin, ymax) {
-  //     const verts = new Float32Array(this.x.length * 3);
-  //     for (let i = 0; i < this.x.length; i++) {
-  //       let x = this.x[i];
-  //       let y = this.y[i];
-  //       verts[i * 3] = ((x - xmin) / (xmax - xmin)) * 2 - 1;
-  //       verts[i * 3 + 1] = ((y - ymin) / (ymax - ymin)) * 2 - 1; // y
-  //       verts[i * 3 + 2] = 0.0; // z
-  //     }
-  //     return verts;
-  //   }
-
-  //   getColors() {
-  //     const cols = new Uint8Array(this.x.length * 4);
-  //     for (let i = 0; i < this.x.length; i++) {
-  //       cols[i * 4] = this.color[0];
-  //       cols[i * 4 + 1] = this.color[1];
-  //       cols[i * 4 + 2] = this.color[2];
-  //       cols[i * 4 + 3] = this.color[3];
-  //     }
-  //     return cols;
-  //   }
-}
-
-class CanvasData {
-  constructor() {
-    this.functions = [];
-
-    CanvasData.instance = this;
-  }
-
-  static getInstance() {
-    if (!CanvasData.instance) {
-      CanvasData.instance = new CanvasData();
+    let glsly;
+    glsly = s_structy.eval();
+    if (type == "function") {
+      this.template = dynamic_vertex_source_part_a_func
+        .concat(`return ${glsly};`, dynamic_vertex_source_part_b_func)
+        .join("\n");
+    } else if (type == "parametric") {
+      let glslx = s_structx.eval();
+      this.template = dynamic_vertex_source_part_a_par
+        .concat(
+          [
+            "float fx(float x) {",
+            `return ${glslx};`,
+            "}",
+            "float fy(float x) {",
+            `return ${glsly};`,
+            "}",
+          ],
+          dynamic_vertex_source_part_b_par,
+        )
+        .join("\n");
     }
-    return CanvasData.instance;
+
+    console.log(this.template);
   }
 }
 
-export { zoomIn, zoomOut, resetZoom, rgba, EQFunction, CanvasData };
+export { zoomIn, zoomOut, resetZoom, rgba, EQFunction };
