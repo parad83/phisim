@@ -22,7 +22,7 @@ Clone the project to your local machine and use python to serve it.
 ```bash
 git clone https://github.com/yourname/project
 cd project
-python -m http.server
+python3 -m http.server
 ```
 
 _(or_ `python` _depending on your python installation)_
