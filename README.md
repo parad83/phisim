@@ -23,6 +23,8 @@ cd project
 python -m http.server
 ```
 
+_(or_ `python` _depending on your python installation)_
+
 Then open in a [compatible](https://get.webgl.org/) browser:
 
 ```txt
