@@ -7,6 +7,7 @@ import {
   isNumber,
   operators_table,
   isFunction,
+  glsl_mapping,
 } from "./misc.js";
 
 function log(e) {
@@ -65,9 +66,9 @@ class SAtom extends S {
 
   eval(vars) {
     if (isNumber(this.c)) {
-      return parseFloat(this.c);
+      return parseFloat(this.c).toFixed(2);
     }
-    return vars[this.c];
+    return this.c;
   }
 
   toString() {
@@ -100,7 +101,7 @@ class SCons extends S {
   }
 
   eval(vars) {
-    return operators_table(
+    return glsl_mapping(
       this.c,
       this.next.length,
     )(...this.next.map((e) => e.eval(vars)));
@@ -295,10 +296,10 @@ function postfix_binding_power(op) {
 
 // log(")");
 
-// const s = expr("sqrt(abs(-25) + 11)");
-// // expr("--1 * 2").print();
-// console.log(s.toString());
-// console.log(s.eval());
+const s = expr("sin(x) + 2 / x");
+// expr("--1 * 2").print();
+console.log(s);
+console.log(s.eval());
 // console.log(s.eval(VARIABLES));
 // console.log(s);
 // traverse(s);

@@ -45,6 +45,31 @@ const operators_table = (op, arity) => {
   return (a, b) => OPERATORS[op](a, b);
 };
 
+export const glsl_mapping = (op, arity) => {
+  if (arity === 1) {
+    return (a) => GLSL_OPERATORS[`${op}unary`](toFloatOrString(a));
+  }
+  return (a, b) => GLSL_OPERATORS[op](toFloatOrString(a), toFloatOrString(b));
+};
+
+const GLSL_OPERATORS = {
+  "+": (a, b) => `${a} + ${b}`,
+  "-": (a, b) => `${a} - ${b}`,
+  "*": (a, b) => `${a} * ${b}`,
+  "^": (a, b) => `pow(${a}, ${b})`,
+  "/": (a, b) => `${a} / ${b}`,
+  "-unary": (a) => `-${a}`,
+  "(": "(",
+  ")": ")",
+  cosunary: (a) => `cos(${a})`,
+  sinunary: (a) => `sin(${a})`,
+  tanunary: (a) => `tan(${a})`,
+  sqrtunary: (a) => `sqrt(${a})`,
+  lnunary: (a) => `log(${a})`,
+  absunary: (a) => `abs(${a})`,
+  expunary: (a) => `exp(${a})`,
+};
+
 const OPERATORS_SET = new Set(Object.keys(OPERATORS));
 
 function getFont(token) {
@@ -132,6 +157,10 @@ function arraysEqual(a, b) {
     if (a[i] !== b[i]) return false;
   }
   return true;
+}
+
+function toFloatOrString(value) {
+  return typeof value === "number" ? parseFloat(value) : value;
 }
 
 export {

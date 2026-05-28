@@ -10,9 +10,6 @@ var g_vbo_pos = null;
 var g_vbo_col = null;
 var g_axes_vbo = null;
 
-var model = new Matrix4x4();
-var view = new Matrix4x4();
-var projection = new Matrix4x4();
 var g_mvp = new Matrix4x4();
 
 var I = new Matrix4x4();
@@ -22,8 +19,9 @@ var a_positionLoc = -1;
 var u_mvpLoc = -1;
 var a_colorLoc = -1;
 
+const blackColor = [0.0, 0.0, 0.0, 1.0];
+
 var controller = null;
-const blackColor = [0, 0, 0, 1];
 
 // TODO move all to main
 import {
@@ -34,6 +32,7 @@ import {
   resetZoom,
   concatFloat32,
   concatUInt8,
+  linspace,
 } from "./utils.js";
 
 import { state } from "./state.js";
@@ -46,8 +45,6 @@ var axesCapacity = 0;
 
 var labelsArrayX = null;
 var labelsArrayY = null;
-var x_tick = 1;
-var y_tick = 1;
 
 function ensureAxesBuffer() {
   const totalLines = 2 * (state.num_of_axis + 1) + 2;
@@ -143,7 +140,6 @@ function main() {
     // ax_o_x = pos_x;
     // ax_o_y = pos_y;
 
-    updateAll();
     bindBuffers();
 
     draw();
@@ -167,14 +163,16 @@ function init() {
   initShaders();
   //   g_bumpTexture = loadTexture("bump.jpg");
   //   g_envTexture = loadCubeMap("skybox", "jpg");
-
-  g_axes_vbo = gl.createBuffer();
 }
 
 function bindBuffers() {
   if (!g_vbo_pos || !g_vbo_col) return;
   gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_pos);
-  gl.bufferData(gl.ARRAY_BUFFER, positions, gl.DYNAMIC_DRAW);
+  gl.bufferData(
+    gl.ARRAY_BUFFER,
+    new Float32Array(linspace(0, 1, 400)),
+    gl.STATIC_DRAW,
+  );
   gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_col);
   gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
 }
@@ -182,6 +180,7 @@ function bindBuffers() {
 function initBuffers() {
   g_vbo_pos = gl.createBuffer();
   g_vbo_col = gl.createBuffer();
+  g_axes_vbo = gl.createBuffer();
   //   bindBuffers();
 }
 
@@ -220,46 +219,70 @@ function draw() {
 
   checkGLError();
 
-  projection.loadIdentity();
-  projection.scale(g_height / g_width, 1, 1);
-
-  view.loadIdentity();
-  model.loadIdentity();
-
-  var mvp = new Matrix4x4();
-  mvp.multiply(model);
-  mvp.multiply(view);
-  mvp.multiply(projection);
+  const mvp = new Matrix4x4();
+  mvp.loadIdentity();
+  mvp.scale(g_height / g_width, 1, 1);
 
   g_mvp = mvp;
 
   gl.useProgram(g_programObject);
 
+  const { xmin, xmax, ymin, ymax } = minmax();
+
   gl.uniformMatrix4fv(u_mvpLoc, false, new Float32Array(mvp.elements));
 
   drawAxis();
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_pos);
-  gl.enableVertexAttribArray(a_positionLoc);
-  gl.vertexAttribPointer(a_positionLoc, 3, gl.FLOAT, false, 0, 0);
+  for (const eq of state.equations) {
+    gl.useProgram(eq.program);
 
-  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_col);
-  gl.enableVertexAttribArray(a_colorLoc);
-  gl.vertexAttribPointer(a_colorLoc, 4, gl.UNSIGNED_BYTE, true, 0, 0);
+    gl.uniformMatrix4fv(eq.u_mvpLoc, false, new Float32Array(mvp.elements));
+    gl.uniform1f(eq.u_xminLoc, xmin);
+    gl.uniform1f(eq.u_xmaxLoc, xmax);
+    gl.uniform1f(eq.u_yminLoc, ymin);
+    gl.uniform1f(eq.u_ymaxLoc, ymax);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_pos);
+    gl.enableVertexAttribArray(eq.a_tLoc);
+    gl.vertexAttribPointer(eq.a_tLoc, 1, gl.FLOAT, false, 0, 0);
+
+    gl.drawArrays(gl.LINE_STRIP, 0, 400);
+  }
 
   // cheaky assuming all positions are same length for same equation :)))
   // maybe later optimise for constant functions and then need to change but wtv
   // always 400 positions for each equation
   // since 3 coordinates its 3 * 400
+}
 
-  const vertsPerEq = 400;
-  const totalVerts = positions.length / 3;
-  //   gl.disable(gl.DEPTH_TEST);
-  for (let first = 0; first < totalVerts; first += vertsPerEq) {
-    gl.drawArrays(gl.LINE_STRIP, first, vertsPerEq);
+var eqFragmentShader = [
+  "precision mediump float;",
+  "",
+  "void main()",
+  "{",
+  "gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);",
+  "}",
+].join("\n");
+
+function compileEquationShader(shader_source) {
+  var shader = loadShader(gl.VERTEX_SHADER, shader_source);
+  var fragmentShader = loadShader(gl.FRAGMENT_SHADER, eqFragmentShader);
+  if (!shader || !fragmentShader) return;
+
+  var programObjectDynamo = gl.createProgram();
+  gl.attachShader(programObjectDynamo, shader);
+  gl.attachShader(programObjectDynamo, fragmentShader);
+  gl.linkProgram(programObjectDynamo);
+
+  var linked = gl.getProgramParameter(programObjectDynamo, gl.LINK_STATUS);
+  if (!linked && !gl.isContextLost()) {
+    console.log(
+      "Error linking program: \n" + gl.getProgramInfoLog(programObject),
+    );
+    gl.deleteProgram(programObject);
+    return;
   }
-  //   gl.enable(gl.DEPTH_TEST);
-  checkGLError();
+  return programObjectDynamo;
 }
 
 function initShaders() {
@@ -314,7 +337,7 @@ function checkGLError() {
   var error = gl.getError();
   if (error != gl.NO_ERROR && error != gl.CONTEXT_LOST_WEBGL) {
     var str = "GL Error: " + error;
-    console.log(str);
+    console.log(error);
     alert(str);
   }
 }
@@ -384,21 +407,6 @@ function updateAxes(axes, x, y, color) {
   return line * 2;
 }
 
-function updateAll() {
-  //   console.log(state.equations.map((eq) => eq.getPositions().slice(0, 10)));
-  const { xmin, xmax, ymin, ymax } = minmax();
-  try {
-    state.equations.forEach((eq) => eq.solve(xmin, xmax));
-  } catch (err) {
-    console.log("aught");
-    showError(err);
-  }
-  positions = concatFloat32(
-    state.equations.map((eq) => eq.getPositions(xmin, xmax, ymin, ymax)),
-  );
-  colors = concatUInt8(state.equations.map((eq) => eq.getColors()));
-}
-
 window.main = main;
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -406,14 +414,12 @@ window.addEventListener("DOMContentLoaded", () => {
     ax_o_x = 0;
     ax_o_y = 0;
 
-    updateAll();
     bindBuffers();
     draw();
     // drawAxis();
   });
   document.getElementById("clear").addEventListener("click", () => {
     state.equations = [];
-    updateAll();
     bindBuffers();
     draw();
     // drawAxis();
@@ -426,7 +432,6 @@ window.addEventListener("DOMContentLoaded", () => {
       var index = enterEq(document.getElementById("eq-input").value);
       console.log(state.equations.length);
       //   updateEquation(index);
-      updateAll();
       bindBuffers();
       draw();
     }
@@ -440,7 +445,6 @@ window.addEventListener("DOMContentLoaded", () => {
       var val = document.getElementById("grid-input").value;
       if (val > 0) {
         state.num_of_axis = val;
-        updateAll();
         bindBuffers();
 
         draw();
@@ -455,7 +459,6 @@ window.addEventListener("DOMContentLoaded", () => {
       var val = document.getElementById("x-tick").value;
       if (val > 0) {
         state.x_tick = val;
-        updateAll();
         bindBuffers();
 
         draw();
@@ -470,7 +473,6 @@ window.addEventListener("DOMContentLoaded", () => {
       var val = document.getElementById("y-tick").value;
       if (val > 0) {
         state.y_tick = val;
-        updateAll();
         bindBuffers();
 
         draw();
@@ -492,8 +494,8 @@ function label(text, x, y) {
 }
 
 function minmax() {
-  const visibleXUnits = state.num_of_axis * state.x_tick;
-  const visibleYUnits = state.num_of_axis * state.y_tick;
+  const visibleXUnits = parseFloat(state.num_of_axis * state.x_tick);
+  const visibleYUnits = parseFloat(state.num_of_axis * state.y_tick);
 
   const centerX = -ax_o_x * (visibleXUnits / 2);
   const centerY = -ax_o_y * (visibleYUnits / 2);
@@ -521,28 +523,28 @@ function enterEq(ele) {
       showError(err);
       return;
     }
-    // console.log(s_struct);
 
-    const { xmin, xmax, ymin, ymax } = minmax();
+    try {
+      const eq = new EQFunction(input, rgba(255, 0, 0, 255), s_struct);
+      console.log(eq.template);
+      eq.program = compileEquationShader(eq.template);
+      // for setting the uniforms
 
-    state.equations.push(
-      new EQFunction(
-        input,
-        rgba(255, 0, 0, 255),
-        s_struct,
-        xmin,
-        xmax,
-        ymin,
-        ymax,
-      ),
-    );
+      eq.a_tLoc = gl.getAttribLocation(eq.program, "a_t");
+      eq.u_mvpLoc = gl.getUniformLocation(eq.program, "u_mvp");
+      eq.u_xminLoc = gl.getUniformLocation(eq.program, "u_xmin");
+      eq.u_xmaxLoc = gl.getUniformLocation(eq.program, "u_xmax");
+      eq.u_yminLoc = gl.getUniformLocation(eq.program, "u_ymin");
+      eq.u_ymaxLoc = gl.getUniformLocation(eq.program, "u_ymax");
+
+      state.equations.push(eq);
+    } catch (err) {
+      showError(err);
+    }
 
     const newequation = document.createElement("li");
-    const index = state.equations.length - 1;
     newequation.textContent = s_struct.toString();
     document.getElementById("eq-list").appendChild(newequation);
-
-    return index;
     // console.log(state.equations);
 
     // const VARS = {

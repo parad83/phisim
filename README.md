@@ -1,5 +1,1 @@
-# PHISIM
-
-mathematical grapher in webgl
-
-
+# Equation grapher in WebGL

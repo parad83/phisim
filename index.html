@@ -146,16 +146,18 @@
                 <li>following operators can be used: +, -, *, /, ^, (, ) as well as standard functions such as: exp, ln,
                     sin, cos, tan, abs, sqrt;</li>
                 <li>use <em>x</em> for variables; </li>
-                <li>you can also use <em>e</em>\! </li>
                 <li>you can change the tick count for the whole graph as well as step sizes for the axis;</li>
                 <li>the solver and renderer do not work well with asymptotic functions as the vertices are drawn with
-                    GL.LINES;</li>
+                    GL.LINES (not true anymore but looks tuff);</li>
+                <li>I could not be bothered to write a parser for decimals, so use fractions;</li>
                 <li>raw equations are parsed with <a
                         href="https://en.wikipedia.org/wiki/Operator-precedence_parser#Pratt_parsing">Pratt parsing</a>
                     and evalated with JS Math;</li>
-                <li>all [A-Za-z]+ will be parsed but only aforementioned functions and <em>x</em> and <em>e</em> will be
-                    evaluated.
+                <li>all the function computations are done on the GPU;</li>
+                <li>all [A-Za-z]+ will be parsed but only aforementioned functions and <em>x</em> will be
+                    evaluated;
                 </li>
+                <li>each equation is draw with 400 vertices.</li>
 
             </ul>
         </div>
