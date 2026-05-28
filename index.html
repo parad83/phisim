@@ -61,7 +61,7 @@
         .controls {
             position: absolute;
             top: 10px;
-            left: 10px;
+            left: 1px;
             z-index: 99;
 
             display: flex;
@@ -147,18 +147,25 @@
                     sin, cos, tan, abs, sqrt;</li>
                 <li>use <em>x</em> for variables; </li>
                 <li>you can change the tick count for the whole graph as well as step sizes for the axis;</li>
-                <li>the solver and renderer do not work well with asymptotic functions as the vertices are drawn with
-                    GL.LINES (not true anymore but looks tuff);</li>
+                <li>on default all the equations are rendered with 400 vertices but you can change that with the sample
+                    size;
+                </li>
+                <li>the solver and renderer do not work well with asymptotic functions as Nan values are not checked for
+                </li>
                 <li>I could not be bothered to write a parser for decimals, so use fractions;</li>
                 <li>raw equations are parsed with <a
                         href="https://en.wikipedia.org/wiki/Operator-precedence_parser#Pratt_parsing">Pratt parsing</a>
-                    and evalated with JS Math;</li>
-                <li>all the function computations are done on the GPU;</li>
+                    and evalated on the GPU;</li>
                 <li>all [A-Za-z]+ will be parsed but only aforementioned functions and <em>x</em> will be
-                    evaluated;
+                    evaluated.
                 </li>
-                <li>each equation is draw with 400 vertices.</li>
-
+            </ul>
+            <hr>
+            pretty cool examples - try to increase the sample size:
+            <ul>
+                <li>sin(x^4) + cos(1/(abs(x) + 1/100)) + exp(-x^2/10) * tan(sin(5*x)) </li>
+                <li>sin(x^2) + cos(x^3) / (1 + abs(x)) + exp(-abs(x)) * sin(20*x)</li>
+                <li>sin(x^6)+cos(1/(abs(x)+1/500))+exp(-(x^2)/6)*tan(sin(12*x))+sin(120*x)/(1+abs(x))</li>
             </ul>
         </div>
 
@@ -174,6 +181,7 @@
                 <input id="grid-input" placeholder="tick count (=6)" type="text">
                 <input id="x-tick" placeholder="x-tick step (=1)" type="text">
                 <input id="y-tick" placeholder="y-tick step (=1)" type="text">
+                <input id="sample-size" placeholder="sample size (=400)" type="text">
                 <button id="center">Center</button>
                 <button id="clear">Clear</button>
             </div>

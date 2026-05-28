@@ -7,7 +7,6 @@ var g_width = 0;
 var g_height = 0;
 
 var g_vbo_pos = null;
-var g_vbo_col = null;
 var g_axes_vbo = null;
 
 var g_mvp = new Matrix4x4();
@@ -166,20 +165,16 @@ function init() {
 }
 
 function bindBuffers() {
-  if (!g_vbo_pos || !g_vbo_col) return;
   gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_pos);
   gl.bufferData(
     gl.ARRAY_BUFFER,
-    new Float32Array(linspace(0, 1, 400)),
+    new Float32Array(linspace(0, 1, state.sample_size)),
     gl.STATIC_DRAW,
   );
-  gl.bindBuffer(gl.ARRAY_BUFFER, g_vbo_col);
-  gl.bufferData(gl.ARRAY_BUFFER, colors, gl.DYNAMIC_DRAW);
 }
 
 function initBuffers() {
   g_vbo_pos = gl.createBuffer();
-  g_vbo_col = gl.createBuffer();
   g_axes_vbo = gl.createBuffer();
   //   bindBuffers();
 }
@@ -246,13 +241,8 @@ function draw() {
     gl.enableVertexAttribArray(eq.a_tLoc);
     gl.vertexAttribPointer(eq.a_tLoc, 1, gl.FLOAT, false, 0, 0);
 
-    gl.drawArrays(gl.LINE_STRIP, 0, 400);
+    gl.drawArrays(gl.LINE_STRIP, 0, state.sample_size);
   }
-
-  // cheaky assuming all positions are same length for same equation :)))
-  // maybe later optimise for constant functions and then need to change but wtv
-  // always 400 positions for each equation
-  // since 3 coordinates its 3 * 400
 }
 
 var eqFragmentShader = [
@@ -306,8 +296,6 @@ function initShaders() {
     return;
   }
   g_programObject = programObject;
-
-  // for setting the uniforms
 
   a_positionLoc = gl.getAttribLocation(g_programObject, "a_position");
   a_colorLoc = gl.getAttribLocation(g_programObject, "a_color");
@@ -399,7 +387,6 @@ function updateAxes(axes, x, y, color) {
     writeLine(-1, gy, 0, 1, gy, 0, color);
   }
 
-  // draw main axes last so they stay visible
   writeLine(x, -1, 0, x, 1, 0, blackColor);
   writeLine(-1, y, 0, 1, y, 0, blackColor);
   label("0", x - 0.02, y - 0.02);
@@ -416,32 +403,23 @@ window.addEventListener("DOMContentLoaded", () => {
 
     bindBuffers();
     draw();
-    // drawAxis();
   });
   document.getElementById("clear").addEventListener("click", () => {
     state.equations = [];
     bindBuffers();
     draw();
-    // drawAxis();
   });
   document.getElementById("eq-input").addEventListener("keydown", () => {
-    // resetZoom();
-    // drawAxis();
     if (event.key === "Enter") {
       // cheakkyyyy
-      var index = enterEq(document.getElementById("eq-input").value);
-      console.log(state.equations.length);
-      //   updateEquation(index);
+      enterEq(document.getElementById("eq-input").value);
       bindBuffers();
       draw();
     }
     // console.log(positions.length, colors.length);
   });
   document.getElementById("grid-input").addEventListener("keydown", () => {
-    // resetZoom();
-    // drawAxis();
     if (event.key === "Enter") {
-      // cheakkyyyy
       var val = document.getElementById("grid-input").value;
       if (val > 0) {
         state.num_of_axis = val;
@@ -452,10 +430,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
   document.getElementById("x-tick").addEventListener("keydown", () => {
-    // resetZoom();
-    // drawAxis();
     if (event.key === "Enter") {
-      // cheakkyyyy
       var val = document.getElementById("x-tick").value;
       if (val > 0) {
         state.x_tick = val;
@@ -466,15 +441,23 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
   document.getElementById("y-tick").addEventListener("keydown", () => {
-    // resetZoom();
-    // drawAxis();
     if (event.key === "Enter") {
-      // cheakkyyyy
       var val = document.getElementById("y-tick").value;
       if (val > 0) {
         state.y_tick = val;
         bindBuffers();
 
+        draw();
+      }
+    }
+  });
+  document.getElementById("sample-size").addEventListener("keydown", () => {
+    if (event.key === "Enter") {
+      var val = document.getElementById("sample-size").value;
+      if (val > 0) {
+        state.sample_size = val;
+
+        bindBuffers();
         draw();
       }
     }
@@ -511,9 +494,6 @@ function minmax() {
 function enterEq(ele) {
   if (event.key === "Enter") {
     const input = ele;
-    // alert(ele.value);
-    // const tokens = ele.value.split(" ");
-    // console.log(tokens);
 
     let s_struct;
 
@@ -526,9 +506,7 @@ function enterEq(ele) {
 
     try {
       const eq = new EQFunction(input, rgba(255, 0, 0, 255), s_struct);
-      console.log(eq.template);
       eq.program = compileEquationShader(eq.template);
-      // for setting the uniforms
 
       eq.a_tLoc = gl.getAttribLocation(eq.program, "a_t");
       eq.u_mvpLoc = gl.getUniformLocation(eq.program, "u_mvp");
@@ -545,15 +523,6 @@ function enterEq(ele) {
     const newequation = document.createElement("li");
     newequation.textContent = s_struct.toString();
     document.getElementById("eq-list").appendChild(newequation);
-    // console.log(state.equations);
-
-    // const VARS = {
-    //   x: 10,
-    // };
-    // const s = expr(ele.value);
-    // s.eval(VARS);
-    // console.log("brackets: " + brackets);
-    // console.log("result: " + s.eval(VARS));
   }
 }
 
