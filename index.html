@@ -192,29 +192,31 @@
 
         <div class="left-panel">
             <ul>
+                <li>works best on computer screens;</li>
                 <li>following operators can be used: +, -, *, /, ^, (, ) as well as standard functions such as: exp, ln,
                     sin, cos, tan, abs, sqrt;</li>
-                <li>use <em>x</em> for variables; </li>
+                <li>use <em>x</em> for functions and any other [A-Za-z]+ for parametric functions; </li>
                 <li>you can change the tick count for the whole graph as well as step sizes for the axis;</li>
                 <li>on default all the equations are rendered with 400 vertices but you can change that with the sample
                     size;
                 </li>
-                <li>the solver and renderer do not work well with asymptotic functions as Nan values are not checked for
-                </li>
+                <li>you can change the function type in the dropdown; </li>
                 <li>I could not be bothered to write a parser for decimals, so use fractions;</li>
                 <li>raw equations are parsed with <a
                         href="https://en.wikipedia.org/wiki/Operator-precedence_parser#Pratt_parsing">Pratt parsing</a>
                     and evalated on the GPU;</li>
-                <li>all [A-Za-z]+ will be parsed but only aforementioned functions and <em>x</em> will be
-                    evaluated.
                 </li>
+                <li>unfortunately you can't delete equations once you graph them so be careful!</li>
             </ul>
             <hr>
             pretty cool examples - try to increase the sample size:
             <ul>
-                <li>y = sin(x^4) + cos(1/(abs(x) + 1/100)) + exp(-x^2/10) * tan(sin(5*x)) </li>
-                <li>y =sin(x^2) + cos(x^3) / (1 + abs(x)) + exp(-abs(x)) * sin(20*x)</li>
-                <li>sin(x^6)+cos(1/(abs(x)+1/500))+exp(-(x^2)/6)*tan(sin(12*x))+sin(120*x)/(1+abs(x))</li>
+                <li>f(x)=sin(x^4)+cos(1/(abs(x) + 1/100)) + exp(-x^2/10) * tan(sin(5*x)) </li>
+                <li>f(x)=sin(x^2)+cos(x^3) / (1 + abs(x)) + exp(-abs(x)) * sin(20*x)</li>
+                <li>x(t)=cos(t)*(1+(1/2)*cos(8*t)+(1/5)*cos(40*t))+(1/20)*sin(200*t) <br>
+                    y(t)=sin(t)*(1+(1/2)*cos(8*t)+(1/5)*cos(40*t))+(1/20)*cos(200*t) <br>
+                    for t \in [0, 2pi]
+                </li>
             </ul>
         </div>
 
@@ -230,10 +232,10 @@
                 </div>
 
                 <div id="param-inputs" hidden>
-                    <input id="x-eq-input" placeholder="x(t) = cos(t)" type="text">
-                    <input id="y-eq-input" placeholder="y(t) = sin(t)" type="text">
-                    <input id="tmin-input" placeholder="t min = 0" type="text">
-                    <input id="tmax-input" placeholder="t max = 2*(355/113)" type="text">
+                    <input id="x-eq-input" placeholder="x(t), e.g. cos(t)" type="text">
+                    <input id="y-eq-input" placeholder="y(t), e.g. sin(t)" type="text">
+                    <input id="tmin-input" placeholder="t_min, e.g. 0" type="text">
+                    <input id="tmax-input" placeholder="t_max, e.g. pi" type="text">
                 </div>
             </div>
             <div class="controls">
